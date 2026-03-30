@@ -6,7 +6,7 @@ module "cluster_automation" {
   project_id_secrets           = "cloud-alchemists-sandbox"
   source_of_truth_path         = "example-source-of-truth.csv"
   region                       = "us-central1"
-  environment                  = "dev"
+  environment                  = "wei—dev"
   cluster_creation_timeout     = "86400"
   cluster_creation_max_retries = "0"
   notification_channel_email   = "weiww@google.com"
