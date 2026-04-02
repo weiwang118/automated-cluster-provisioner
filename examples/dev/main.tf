@@ -1,5 +1,5 @@
 module "cluster_automation" {
-  source                       = "git::https://github.com/weiwang118/automated-cluster-provisioner.git?ref=sandbox-test"
+  source                       = "git::https://github.com/weiwang118/automated-cluster-provisioner.git//module?ref=sandbox-test"
   project_id                   = "cloud-alchemists-sandbox"
   source_of_truth_repo         = "github.com/weiwang118/automated-cluster-provisioner"
   git_secret_id                = "wei-acp-test"
