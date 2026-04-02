@@ -5,6 +5,7 @@ module "cluster_automation" {
   git_secret_id                = "wei-acp-test"
   project_id_secrets           = "cloud-alchemists-sandbox"
   source_of_truth_path         = "wei-source-of-truth.csv"
+  source_of_truth_branch       = "sandbox-test"
   region                       = "us-central1"
   environment                  = "wei-dev"
   cluster_creation_timeout     = "86400"
