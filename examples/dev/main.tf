@@ -4,7 +4,6 @@ module "cluster_automation" {
   source_of_truth_repo         = "github.com/weiwang118/automated-cluster-provisioner"
   git_secret_id                = "wei-acp-test"
   project_id_secrets           = "cloud-alchemists-sandbox"
-  project_id_fleet             = "edgesites-baremetal-lab-qual"
   source_of_truth_path         = "wei-source-of-truth.csv"
   source_of_truth_branch       = "sandbox-test"
   region                       = "us-central1"
