@@ -8,7 +8,7 @@ module "cluster_automation" {
   gke_hub_api_endpoint_override             = "https://staging-gkehub.sandbox.googleapis.com/"
   edge_network_api_endpoint_override          = "https://staging-edgenetwork.sandbox.googleapis.com/"
   hardware_management_api_endpoint_override = "https://staging-gdchardwaremanagement.sandbox.googleapis.com/"
-  connect_gateway_api_endpoint_override = https://staging-connectgateway.sandbox.googleapis.com/"
+  connect_gateway_api_endpoint_override = "https://staging-connectgateway.sandbox.googleapis.com/"
   source_of_truth_path         = "wei-source-of-truth.csv"
   source_of_truth_branch       = "sandbox-test"
   region                       = "us-central1"
