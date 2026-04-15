@@ -415,7 +415,7 @@ steps:
         --project $SECRETS_PROJECT_ID >> "$(pwd)/git-creds"
 
     set -x
-    kubectl create ns config-management-system --dry-run=client -o yaml | kubectl appppply -f -
+    kubectl create ns config-management-system --dry-run=client -o yaml | kubectl apply -f -
     # Capture PIPESTATUS to catch errors occurring in both components of the pipe
     rcs=("${PIPESTATUS[@]}")
     if [[ ${rcs[0]} -ne 0 ]] || [[ ${rcs[1]} -ne 0 ]]; then
