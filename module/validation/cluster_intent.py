@@ -1,5 +1,5 @@
 from typing import Optional, Annotated, Iterable
-from pydantic import BaseModel, StringConstraints, validator, root_validator
+from pydantic import BaseModel, StringConstraints, validator, model_validator
 from ipaddress import IPv4Network
 
 # https://www.ietf.org/rfc/rfc1035.txt
@@ -53,10 +53,10 @@ class SourceOfTruthModel(BaseModel):
         else:
             return v
 
-    @root_validator(skip_on_failure=True)
-    def check_robin_cns_version(cls, values):
-        enable_robin_cns = values.get('enable_robin_cns')
-        cluster_version = values.get('cluster_version')
+    @model_validator(mode='after')
+    def check_robin_cns_version(self):
+        enable_robin_cns = self.enable_robin_cns
+        cluster_version = self.cluster_version
         
         if enable_robin_cns is True and cluster_version:
             try:
@@ -67,4 +67,4 @@ class SourceOfTruthModel(BaseModel):
                     raise ValueError(f"Robin CNS is only supported for GDC versions 1.12.0 or higher. Current version: {cluster_version}")
             except (IndexError, ValueError):
                  raise ValueError(f"Invalid cluster version format: {cluster_version}")
-        return values
+        return self
