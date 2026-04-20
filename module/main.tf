@@ -293,6 +293,7 @@ resource "google_project_iam_member" "zone-watcher-builder-roles" {
 
 # zone-watcher cloud function
 resource "google_cloudfunctions2_function" "zone-watcher" {
+  depends_on  = [google_project_iam_member.zone-watcher-builder-roles]
   name        = "zone-watcher-${var.environment}"
   location    = var.region
   description = "zone watcher function"
@@ -364,6 +365,7 @@ resource "google_cloud_scheduler_job" "job" {
 
 # Cluster Watcher cloud function
 resource "google_cloudfunctions2_function" "cluster-watcher" {
+  depends_on  = [google_project_iam_member.zone-watcher-builder-roles]
   name        = "cluster-watcher-${var.environment}"
   location    = var.region
   description = "cluster watcher function"
@@ -438,6 +440,7 @@ resource "google_cloud_scheduler_job" "cluster-watcher-job" {
 # Zone Active Metric Ingestion cloud function
 resource "google_cloudfunctions2_function" "zone-active-metric" {
   count       = var.deploy_zone_active_monitor ? 1 : 0
+  depends_on  = [google_project_iam_member.zone-watcher-builder-roles]
   name        = "zone-active-metric-${var.environment}"
   location    = var.region
   description = "zone active metric generator"

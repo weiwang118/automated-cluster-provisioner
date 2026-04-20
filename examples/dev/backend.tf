@@ -7,7 +7,7 @@ terraform {
     }
   }
   backend "gcs" {
-    bucket = "sample-state-bucket" ## Change the bucket name before using
-    prefix = "dev-prefix" ## Change the prefix name before using
+    bucket = "wei-acp-test-bucket" ## Change the bucket name before using
+    prefix = "sandbox" ## Change the prefix name before using
   }
 } 
