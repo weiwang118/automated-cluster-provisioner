@@ -88,6 +88,8 @@ resource "google_monitoring_alert_policy" "watcher-absence-alert" {
       aggregations {
         alignment_period = "60s"
         per_series_aligner = "ALIGN_RATE"
+        cross_series_reducer = "REDUCE_SUM"
+        group_by_fields = ["resource.labels.service_name"]
       }
     }
   }
@@ -100,6 +102,8 @@ resource "google_monitoring_alert_policy" "watcher-absence-alert" {
       aggregations {
         alignment_period = "60s"
         per_series_aligner = "ALIGN_RATE"
+        cross_series_reducer = "REDUCE_SUM"
+        group_by_fields = ["resource.labels.service_name"]
       }
     }
   }
@@ -109,29 +113,6 @@ resource "google_monitoring_alert_policy" "watcher-absence-alert" {
   }
 }
 
-resource "google_monitoring_alert_policy" "build-timeout-alert" {
-  display_name = "Cloud Build Duration Timeout Alert"
-  notification_channels = [google_monitoring_notification_channel.cp_notification_channel.name]
-  combiner = "OR"
-  
-  conditions {
-    display_name = "Build duration exceeds 24 hours"
-    condition_threshold {
-      filter = "resource.type = \"build\" AND metric.type = \"cloudbuild.googleapis.com/build/duration\" AND metric.labels.build_trigger_name = monitoring.regex.full_match(\"${google_cloudbuild_trigger.create-cluster.name}|${google_cloudbuild_trigger.modify-cluster.name}\")"
-      comparison = "COMPARISON_GT"
-      threshold_value = 86400 # 24 hours in seconds
-      duration = "60s"
-      aggregations {
-        alignment_period = "60s"
-        per_series_aligner = "ALIGN_MAX"
-      }
-    }
-  }
-  documentation {
-    content = "A Create or Modify Cluster Cloud Build job has exceeded 24 hours in duration. This indicates the pipeline may be stuck or hung (e.g., waiting for VM shutdown or API timeouts). Please investigate the specific build execution logs in Cloud Build to resolve the blocker."
-    mime_type = "text/markdown"
-  }
-}
 
 resource "time_sleep" "cluster-creation-failure-csv-timer" {
     depends_on = [ google_logging_metric.cluster-creation-failure-csv ]
@@ -147,7 +128,7 @@ resource "google_monitoring_alert_policy" "cluster-creation-failure-csv-alert" {
     display_name = "Invalid Cluster Intent Alert"
     condition_prometheus_query_language {
       query = <<EOL
-      count(rate(logging_googleapis_com:user_cluster_creation_failure_csv_${var.environment}{monitored_resource="build"}[1h])) by (cluster_name) > 0
+      count(rate(logging_googleapis_com:user_cluster_creation_failure_csv_${replace(var.environment, "-", "_")}{monitored_resource="build"}[1h])) by (cluster_name) > 0
         EOL
       
       duration = "3600s"
@@ -173,7 +154,7 @@ resource "google_monitoring_alert_policy" "cluster-creation-failure-healthcheck-
     display_name = "Workload Health Check Timeout Alert"
     condition_prometheus_query_language {
       query = <<EOL
-      count(rate(logging_googleapis_com:user_cluster_creation_failure_healthcheck_${var.environment}{monitored_resource="build"}[1h])) by (cluster_name) > 0
+      count(rate(logging_googleapis_com:user_cluster_creation_failure_healthcheck_${replace(var.environment, "-", "_")}{monitored_resource="build"}[1h])) by (cluster_name) > 0
         EOL
       
       duration = "3600s"
@@ -199,7 +180,7 @@ resource "google_monitoring_alert_policy" "cluster-modify-failure-csv-alert" {
     display_name = "CSV Intent Modify Failure Alert"
     condition_prometheus_query_language {
       query = <<EOL
-      count(rate(logging_googleapis_com:user_cluster_modify_failure_csv_${var.environment}{monitored_resource="build"}[1h])) by (cluster_name) > 0
+      count(rate(logging_googleapis_com:user_cluster_modify_failure_csv_${replace(var.environment, "-", "_")}{monitored_resource="build"}[1h])) by (cluster_name) > 0
         EOL
       
       duration = "3600s"
@@ -225,7 +206,7 @@ resource "google_monitoring_alert_policy" "cluster-creation-failure-source-acces
     display_name = "Source Access Failure Alert"
     condition_prometheus_query_language {
       query = <<EOL
-      count(rate(logging_googleapis_com:user_cluster_creation_failure_source_access_${var.environment}{monitored_resource="build"}[1h])) by (cluster_name) > 0
+      count(rate(logging_googleapis_com:user_cluster_creation_failure_source_access_${replace(var.environment, "-", "_")}{monitored_resource="build"}[1h])) by (cluster_name) > 0
         EOL
       
       duration = "3600s"
@@ -251,7 +232,7 @@ resource "google_monitoring_alert_policy" "cluster-creation-failure-robin-alert"
     display_name = "Robin CNS Failure Alert"
     condition_prometheus_query_language {
       query = <<EOL
-      count(rate(logging_googleapis_com:user_cluster_creation_failure_robin_${var.environment}{monitored_resource="build"}[1h])) by (cluster_name) > 0
+      count(rate(logging_googleapis_com:user_cluster_creation_failure_robin_${replace(var.environment, "-", "_")}{monitored_resource="build"}[1h])) by (cluster_name) > 0
         EOL
       
       duration = "3600s"
@@ -277,7 +258,7 @@ resource "google_monitoring_alert_policy" "cluster-modify-failure-source-access-
     display_name = "Source Access Failure Alert"
     condition_prometheus_query_language {
       query = <<EOL
-      count(rate(logging_googleapis_com:user_cluster_modify_failure_source_access_${var.environment}{monitored_resource="build"}[1h])) by (cluster_name) > 0
+      count(rate(logging_googleapis_com:user_cluster_modify_failure_source_access_${replace(var.environment, "-", "_")}{monitored_resource="build"}[1h])) by (cluster_name) > 0
         EOL
 
       duration = "3600s"

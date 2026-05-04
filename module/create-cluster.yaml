@@ -38,14 +38,14 @@ steps:
 
       if [[ "$MAX_RETRIES" -eq 0 ]]; then
         echo ">>> [ERROR] Marking zone as failed"
-        zone_signal $ZONE_ID FACTORY_TURNUP_CHECKS_FAILED "$step" "$details"
+        zone_signal "$ZONE_ID" FACTORY_TURNUP_CHECKS_FAILED "$step" "$details"
       else
         # Will include the current build as well
         BUILD_COUNT=$(gcloud builds list --filter "tags='$STORE_ID' AND substitutions.TRIGGER_NAME='$TRIGGER_NAME'" --region us-central1 --format="csv[no-heading](name)" | wc -l)
 
         if [[ "$BUILD_COUNT" -gt "$MAX_RETRIES" ]]; then
           echo ">>> [ERROR] Current build count $BUILD_COUNT exceeds max retries $MAX_RETRIES. Marking zone as failed"
-          zone_signal $ZONE_ID FACTORY_TURNUP_CHECKS_FAILED "$step" "$details"
+          zone_signal "$ZONE_ID" FACTORY_TURNUP_CHECKS_FAILED "$step" "$details"
         else
           echo ">>> [ERROR] Current build count $BUILD_COUNT is <= max retries $MAX_RETRIES. Skipping for next retry"
         fi
@@ -59,7 +59,7 @@ steps:
       message=">>> [Build Step] [Build: ${BUILD_ID}] $*"
       echo "$message"
 
-      zone_signal $ZONE_ID FACTORY_TURNUP_CHECKS_STARTED "$message"
+      zone_signal "$ZONE_ID" FACTORY_TURNUP_CHECKS_STARTED "$message"
     )
 
     # Sets the `UNDER_FACTORY_CHECKS` to either true if ZoneState is ready, started, or failed
@@ -278,7 +278,7 @@ steps:
     if [[ -n "${ZONE_NAME_FROM_SOT}" ]]; then
       set_factory_check_flag
     else
-      set_factory_check_flag $ZONE_ID
+      set_factory_check_flag "$ZONE_ID"
     fi
     set +x
 
@@ -544,7 +544,7 @@ steps:
       echo ">>> [Cluster Create] Backups for this cluster is not enabled."
     fi
 
-    zone_signal $ZONE_ID FACTORY_TURNUP_CHECKS_PASSED
+    zone_signal "$ZONE_ID" FACTORY_TURNUP_CHECKS_PASSED
 
     echo ">>> [Cluster Create] Cluster Creation Succeeded: $CLUSTER_NAME"
 
