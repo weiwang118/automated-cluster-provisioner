@@ -8,9 +8,10 @@ logger = logging.getLogger(__name__)
 logger.setLevel(os.environ.get("LOG_LEVEL", "INFO").upper())
 
 class BuildSummary:
-    latestStatus: Build.Status = None
+    latest_non_failure_status: Build.Status = None
     retriable: bool = False
     latest_try_count: int = 0
+    latest_attempt_failed: bool = False
 
     def add_build(self, build: cloudbuild.Build):
         # NOTE on processing order and retry logic:
@@ -22,12 +23,12 @@ class BuildSummary:
         # 4. Usage Context: Note that this `retriable` result is only checked in main.py when cluster_exists is True
         #    or when there are not enough free machines.
 
-        # latestStatus will only be updated with non-failure statuses.
+        # latest_non_failure_status will only be updated with non-failure statuses.
         if build.status in (cloudbuild.Build.Status.QUEUED, cloudbuild.Build.Status.PENDING, cloudbuild.Build.Status.WORKING):
-            self.latestStatus = build.status
+            self.latest_non_failure_status = build.status
             self.retriable = False
         elif build.status == cloudbuild.Build.Status.SUCCESS:
-            self.latestStatus = build.status
+            self.latest_non_failure_status = build.status
             self.retriable = False
         else:
             # Any status in this category can be treated as a failure
@@ -111,17 +112,26 @@ class BuildHistory:
             if key in build_summary_dict:
                 summary = build_summary_dict[key]
                 # Since we process from newest to oldest, once we have found a non-failure
-                # status (latestStatus is set), older builds will not change the outcome.
+                # status (latest_non_failure_status is set), older builds will not change the outcome.
                 # We can safely skip calling add_build for them.
-                if summary.latestStatus is not None:
+                if summary.latest_non_failure_status is not None:
                     continue
                 summary.add_build(response)
             else:
                 summary = BuildSummary()
+                
+                # Check if the absolute newest build failed
+                summary.latest_attempt_failed = response.status not in (
+                    cloudbuild.Build.Status.SUCCESS,
+                    cloudbuild.Build.Status.WORKING,
+                    cloudbuild.Build.Status.QUEUED,
+                    cloudbuild.Build.Status.PENDING
+                )
+                
                 try_count_str = response.substitutions.get("_TRY_COUNT", "0")
                 summary.latest_try_count = int(try_count_str)
                 summary.add_build(response)
-                logger.info(f"Found latest build for zone {zone} with hash {intent_hash}. Latest try_count={summary.latest_try_count}")
+                logger.info(f"Found latest build for zone {zone} with hash {intent_hash}. Latest try_count={summary.latest_try_count}, latest_attempt_failed={summary.latest_attempt_failed}")
                 build_summary_dict[key] = summary
 
         return build_summary_dict
