@@ -126,8 +126,6 @@ def _zone_watcher_worker(
             else:
                 logger.info(f'ZONE {zone}: {m.name} is a free node')
                 count_of_free_machines = count_of_free_machines+1
-
-        zone_state = zones[zone_store_id].state
  
         if cluster_exists and not builds.should_retry_zone_build(zone, store_info.intent_hash):
             logger.info(f'Cluster already exists for {zone}. Skipping..')
@@ -139,7 +137,8 @@ def _zone_watcher_worker(
             logger.info(f'ZONE {zone}: Not enough free  nodes to create cluster. Need {str(store_info.node_count)} but have {str(count_of_free_machines)} free nodes')
             if not builds.should_retry_zone_build(zone, store_info.intent_hash):
                 continue
- 
+
+        zone_state = zones[zone_store_id].state
         if zone_name_retrieved_from_api and not verify_zone_state(zone_state, zone_store_id, store_info.recreate_on_delete):
             logger.info(f'Zone: {zone}, Store: {store_id} is not in expected state! skipping..')
             continue
@@ -148,13 +147,12 @@ def _zone_watcher_worker(
         # If state is READY, it's a fresh start (or manual reset), so start at 1.
         # If state is STARTED, it's a continuation of an attempt, so increment from history.
         try_count = 1
-        if zone_state == Zone.State.READY_FOR_CUSTOMER_FACTORY_TURNUP_CHECKS:
-            logger.info(f'Zone {zone} is in READY state. Starting with try_count=1.')
-            try_count = 1
+        if zone_state in (Zone.State.READY_FOR_CUSTOMER_FACTORY_TURNUP_CHECKS, Zone.State.ACTIVE):
+            logger.info(f'Zone {zone} is in {zone_state.name} state. Starting with try_count=1.')
         elif zone_state == Zone.State.CUSTOMER_FACTORY_TURNUP_CHECKS_STARTED:
             latest_try = builds.get_latest_try_count(zone, store_info.intent_hash)
             try_count = latest_try + 1
-            logger.info(f'Zone {zone} is in STARTED state. Latest try_count from history was {latest_try}. Setting next try_count={try_count}.')
+            logger.info(f'Zone {zone} is in {zone_state.name} state. Latest try_count from history was {latest_try}. Setting next try_count={try_count}.')
             
         # Pre-emptively skip if we have exceeded the allowed attempts (max_retries + 1).
         # This avoids triggering a build that we know will fail in the Bash script.

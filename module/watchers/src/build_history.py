@@ -9,8 +9,6 @@ logger.setLevel(os.environ.get("LOG_LEVEL", "INFO").upper())
 
 class BuildSummary:
     latestStatus: Build.Status = None
-    numberOfBuilds: int = 0
-    numberOfFailures: int = 0
     retriable: bool = False
     latest_try_count: int = 0
 
@@ -23,25 +21,8 @@ class BuildSummary:
         #    in any of the previous recorded attempts in this history window.
         # 4. Usage Context: Note that this `retriable` result is only checked in main.py when cluster_exists is True
         #    or when there are not enough free machines.
-        self.numberOfBuilds += 1
 
-        if build.status not in (
-            cloudbuild.Build.Status.QUEUED,
-            cloudbuild.Build.Status.PENDING,
-            cloudbuild.Build.Status.WORKING,
-            cloudbuild.Build.Status.SUCCESS):
-            self.numberOfFailures += 1
-
-        # This means that there is a build in progress and we should not retry or change the status
-        if self.latestStatus in (cloudbuild.Build.Status.QUEUED, cloudbuild.Build.Status.PENDING, cloudbuild.Build.Status.WORKING):
-            self.retriable = False
-            return
-
-        # This means that there was a successful build and we should not retry
-        if self.latestStatus == cloudbuild.Build.Status.SUCCESS:
-            self.retriable = False
-            return
-        
+        # latestStatus will only be updated with non-failure statuses.
         if build.status in (cloudbuild.Build.Status.QUEUED, cloudbuild.Build.Status.PENDING, cloudbuild.Build.Status.WORKING):
             self.latestStatus = build.status
             self.retriable = False
@@ -52,9 +33,6 @@ class BuildSummary:
             # Any status in this category can be treated as a failure
             self.retriable = True
 
-
-
-
 class BuildHistory:
     def __init__(self, project_id: str, region: str, max_retries: int, trigger_name: str):
         self.project_id = project_id
@@ -62,9 +40,9 @@ class BuildHistory:
         self.max_retries = max_retries
         self.trigger_name = trigger_name
         self.client = cloudbuild.CloudBuildClient()
-        self.builds: Dict[str, BuildSummary] = self._get_build_history()
+        self.builds: Dict[tuple[str, str], BuildSummary] = self._get_build_history()
 
-    def _get_build_history(self) ->Dict[str, BuildSummary]:
+    def _get_build_history(self) ->Dict[tuple[str, str], BuildSummary]:
         """
         Queries for Cloud Build history matching a specific trigger name.
 
@@ -72,9 +50,9 @@ class BuildHistory:
             trigger_name: The name of the Cloud Build trigger.
 
         Returns:
-            A dictionary with the zone name as the key and the build summary
-            which contains relevant information to determine if a retry should
-            be triggered.
+            A dictionary with the zone name and intent hash tuple as the key 
+            and the build summary which contains relevant information to 
+            determine if a retry should be triggered.
         """
         trigger_request = cloudbuild.ListBuildTriggersRequest(
             project_id = self.project_id,
@@ -105,7 +83,7 @@ class BuildHistory:
 
         # Only page through last 1,000 builds
         build_entries = 0
-        build_summary_dict: Dict[str, BuildSummary] = dict()
+        build_summary_dict: Dict[tuple[str, str], BuildSummary] = dict()
 
         for response in page_result:
             build_entries += 1
@@ -125,13 +103,18 @@ class BuildHistory:
             if not zone:
                 # Builds are expected to have the _ZONE substitution. This is the value that is
                 # matched on to calculate whether a build should be retried or not. 
-                logging.warning(f"build found without _ZONE substitution, skipping... Build ID: {response.id}")
+                logger.warning(f"build found without _ZONE substitution, skipping... Build ID: {response.id}")
                 continue
 
             key = (zone, intent_hash)
 
             if key in build_summary_dict:
                 summary = build_summary_dict[key]
+                # Since we process from newest to oldest, once we have found a non-failure
+                # status (latestStatus is set), older builds will not change the outcome.
+                # We can safely skip calling add_build for them.
+                if summary.latestStatus is not None:
+                    continue
                 summary.add_build(response)
             else:
                 summary = BuildSummary()

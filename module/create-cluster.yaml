@@ -43,10 +43,10 @@ steps:
         # Instead of querying build history with gcloud (which is slow and was counting builds from previous lifecycles),
         # we directly use the TRY_COUNT passed from Zone Watcher to check if we exceeded MAX_RETRIES.
         if [[ "$TRY_COUNT" -gt "$MAX_RETRIES" ]]; then
-          echo ">>> [ERROR] Current try count $TRY_COUNT has exhausteds max retries $MAX_RETRIES. Marking zone as failed"
+          echo ">>> [ERROR] Current try count $TRY_COUNT has exhausted max retries $MAX_RETRIES. Marking zone as failed"
           zone_signal $ZONE_ID FACTORY_TURNUP_CHECKS_FAILED "$step" "$details"
         else
-          echo ">>> [ERROR] Current try count $TRY_COUNT is <= max retries $MAX_RETRIES. Skipping for next retry"
+          echo ">>> [ERROR] Current try count $TRY_COUNT is <= max retries $MAX_RETRIES. Skipping failure signal to allow next retry."
         fi
       fi
 
