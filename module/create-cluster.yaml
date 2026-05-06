@@ -191,6 +191,39 @@ steps:
       echo "$output"
     }
 
+    function resolve_cluster_version() {
+      local intent="$1"
+      local project_id="$2"
+      local sot_path="$3"
+      
+      local version=$(parse_csv_optional "$intent" "cluster_version")
+      
+      if [[ -n "$version" ]]; then
+        echo ">>> [Config] Cluster version specified in the cluster intent: $version" >&2
+        echo "$version"
+        return 0
+      fi
+      
+      echo ">>> [Config] Cluster version not specified in the cluster intent, falling back to fleet-version-config.csv" >&2
+      
+      local fleet_config_path="repo/fleet-version-config.csv"
+      
+      if [[ ! -f "$fleet_config_path" ]]; then
+         die "[CUSTOMER_ERROR] fleet-version-config.csv not found at $fleet_config_path but required for fallback"
+      fi
+      
+      local row=$(awk -F , "\$1 == \"$project_id\" || \$1 == \"\\\"$project_id\\\"\"" "$fleet_config_path")
+      
+      if [[ -z "$row" ]]; then
+         die "[CUSTOMER_ERROR] Project $project_id not found in $fleet_config_path"
+      fi
+      
+      local header=$(head -1 "$fleet_config_path")
+      local data="$header"$'\n'"$row"
+      
+      parse_csv_required "$data" "cluster_version"
+    }
+
     # Use this function to determine if the required version is met. 
     # Return true if met. Return false if not met. 
     # This can be used when version checking is important.
@@ -264,7 +297,7 @@ steps:
     export SYNC_DIR=$(parse_csv_required "$CLUSTER_INTENT" "sync_dir")
     export SECRETS_PROJECT_ID=$(parse_csv_required "$CLUSTER_INTENT" "secrets_project_id")
     export GIT_TOKEN_SECRETS_MANAGER_NAME=$(parse_csv_required "$CLUSTER_INTENT" "git_token_secrets_manager_name")
-    export CLUSTER_VERSION=$(parse_csv_required "$CLUSTER_INTENT" "cluster_version")
+    export CLUSTER_VERSION=$(resolve_cluster_version "$CLUSTER_INTENT" "$FLEET_PROJECT_ID" "$SOURCE_OF_TRUTH_PATH")
     export MAINTENANCE_WINDOW_START=$(parse_csv_optional "$CLUSTER_INTENT" "maintenance_window_start")
     export MAINTENANCE_WINDOW_END=$(parse_csv_optional "$CLUSTER_INTENT" "maintenance_window_end")
     export MAINTENANCE_WINDOW_RECURRENCE=$(parse_csv_optional "$CLUSTER_INTENT" "maintenance_window_recurrence")
