@@ -10,6 +10,7 @@ module "cluster_automation" {
   hardware_management_api_endpoint_override = "https://staging-gdchardwaremanagement.sandbox.googleapis.com/"
   connect_gateway_api_endpoint_override = "https://staging-connectgateway.sandbox.googleapis.com/"
   source_of_truth_path         = "wei-source-of-truth.csv"
+  fleet_config_path            = "fleet-version-config.csv"
   source_of_truth_branch       = "sandbox-test"
   region                       = "us-central1"
   environment                  = "acp-dev"

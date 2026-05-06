@@ -207,10 +207,10 @@ steps:
       
       echo ">>> [Config] Cluster version not specified in the cluster intent, falling back to fleet-version-config.csv" >&2
       
-      local fleet_config_path="repo/fleet-version-config.csv"
+      local fleet_config_path="repo/$FLEET_CONFIG_PATH"
       
       if [[ ! -f "$fleet_config_path" ]]; then
-         die "[CUSTOMER_ERROR] fleet-version-config.csv not found at $fleet_config_path but required for fallback"
+         die "[CUSTOMER_ERROR] Fleet config file not found at $fleet_config_path but required for fallback"
       fi
       
       local row=$(awk -F , "\$1 == \"$project_id\" || \$1 == \"\\\"$project_id\\\"\"" "$fleet_config_path")
@@ -592,6 +592,7 @@ steps:
   - 'SOURCE_OF_TRUTH_REPO=$_SOURCE_OF_TRUTH_REPO'
   - 'SOURCE_OF_TRUTH_BRANCH=$_SOURCE_OF_TRUTH_BRANCH'
   - 'SOURCE_OF_TRUTH_PATH=$_SOURCE_OF_TRUTH_PATH'
+  - 'FLEET_CONFIG_PATH=$_FLEET_CONFIG_PATH'
   - 'GIT_SECRET_ID=$_GIT_SECRET_ID'
   - 'GIT_SECRETS_PROJECT_ID=$_GIT_SECRETS_PROJECT_ID'
   - 'SKIP_HEALTH_CHECK=$_SKIP_HEALTH_CHECK'
