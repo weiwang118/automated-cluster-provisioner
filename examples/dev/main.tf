@@ -1,5 +1,5 @@
 module "cluster_automation" {
-  source                       = "git::https://github.com/weiwang118/automated-cluster-provisioner.git//module?ref=sandbox-test"
+  source                       = "../../module"
   project_id                   = "cloud-alchemists-sandbox"
   source_of_truth_repo         = "github.com/weiwang118/automated-cluster-provisioner"
   git_secret_id                = "wei-acp-test"
@@ -10,7 +10,7 @@ module "cluster_automation" {
   hardware_management_api_endpoint_override = "https://staging-gdchardwaremanagement.sandbox.googleapis.com/"
   connect_gateway_api_endpoint_override = "https://staging-connectgateway.sandbox.googleapis.com/"
   source_of_truth_path         = "wei-source-of-truth.csv"
-  source_of_truth_branch       = "sandbox-test"
+  source_of_truth_branch       = "version-arch-test"
   fleet_config_path            = "fleet-version-config.csv"
   region                       = "us-central1"
   environment                  = "acp-dev"

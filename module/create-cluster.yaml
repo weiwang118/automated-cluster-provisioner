@@ -330,7 +330,7 @@ steps:
     export LABELS=$(parse_csv_optional "$CLUSTER_INTENT" "labels")
     set -x
     if [[ -n "${ZONE_NAME_FROM_SOT}" ]]; then
-      set_factory_check_flag
+      set_factory_check_flag $ZONE_ID
     else
       set_factory_check_flag $ZONE_ID
     fi

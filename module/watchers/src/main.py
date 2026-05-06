@@ -83,7 +83,7 @@ def _zone_watcher_worker(
         try:
             if store_info.zone_name:
                 zone = store_info.zone_name
-                zone_name_retrieved_from_api = False
+                zone_name_retrieved_from_api = True
             else:
                 zone = zones[zone_store_id].globally_unique_id
                 zone_name_retrieved_from_api = True
