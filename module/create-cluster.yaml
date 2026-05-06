@@ -387,7 +387,7 @@ steps:
     export ZONE_ID="projects/${MACHINE_PROJECT_ID}/locations/${LOCATION}/zones/${STORE_ID}"
     set -x
     if [[ -n "${ZONE_NAME_FROM_SOT}" ]]; then
-      set_factory_check_flag
+      set_factory_check_flag $ZONE_ID
     else
       set_factory_check_flag $ZONE_ID
     fi
