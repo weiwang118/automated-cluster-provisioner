@@ -173,10 +173,10 @@ steps:
 
       output=$(echo "$input" | csvtool namedcol "$column" - | csvtool drop 1 - | tr -d '"')
 
-      [[ $? -ne 0 ]] && die "Missing required parameter $2"
+      [[ $? -ne 0 ]] && die "Missing required parameter $2" >&2
 
       if [ -z "$output" ]; then
-        die "Empty required parameter $2"
+        die "Empty required parameter $2" >&2
       fi
 
       echo "$output"
@@ -204,18 +204,17 @@ steps:
         return 0
       fi
       
-      echo ">>> [Config] Cluster version not specified in the cluster intent, falling back to fleet-version-config.csv" >&2
+      echo ">>> [Config] Cluster version not specified in the cluster intent, falling back to fleet version config file: $FLEET_CONFIG_PATH" >&2
       
-      local fleet_config_path="repo/fleet-version-config.csv"
+      local fleet_config_path="repo/$FLEET_CONFIG_PATH"
       
       if [[ ! -f "$fleet_config_path" ]]; then
-         die "[CUSTOMER_ERROR] fleet-version-config.csv not found at $fleet_config_path but required for fallback"
+         die "[CUSTOMER_ERROR] Fleet config file not found at $fleet_config_path but required for fallback" >&2
       fi
-      
       local row=$(awk -F , "\$1 == \"$project_id\" || \$1 == \"\\\"$project_id\\\"\"" "$fleet_config_path")
       
       if [[ -z "$row" ]]; then
-         die "[CUSTOMER_ERROR] Project $project_id not found in $fleet_config_path"
+         die "[CUSTOMER_ERROR] Project $project_id not found in $fleet_config_path" >&2
       fi
       
       local header=$(head -1 "$fleet_config_path")
@@ -288,6 +287,7 @@ steps:
     export FLEET_PROJECT_ID=$(parse_csv_required "$CLUSTER_INTENT" "fleet_project_id")
     export CLUSTER_NAME=$(parse_csv_required "$CLUSTER_INTENT" "cluster_name")
     export LOCATION=$(parse_csv_required "$CLUSTER_INTENT" "location")
+    export ZONE_ID="projects/${MACHINE_PROJECT_ID}/locations/${LOCATION}/zones/${STORE_ID}"
     export NODE_COUNT=$(parse_csv_required "$CLUSTER_INTENT" "node_count")
     export CLUSTER_IPV4_CIDR=$(parse_csv_required "$CLUSTER_INTENT" "cluster_ipv4_cidr")
     export SERVICES_IPV4_CIDR=$(parse_csv_required "$CLUSTER_INTENT" "services_ipv4_cidr")
@@ -305,7 +305,6 @@ steps:
     export ENABLE_ROBIN_CNS=$(parse_csv_optional "$CLUSTER_INTENT" "enable_robin_cns")
     export ZONE_NAME_FROM_SOT=$(parse_csv_optional "$CLUSTER_INTENT" "zone_name")
     export LABELS=$(parse_csv_optional "$CLUSTER_INTENT" "labels")
-    export ZONE_ID="projects/${MACHINE_PROJECT_ID}/locations/${LOCATION}/zones/${STORE_ID}"
     set -x
     if [[ -n "${ZONE_NAME_FROM_SOT}" ]]; then
       set_factory_check_flag
@@ -591,6 +590,7 @@ steps:
   - 'SOURCE_OF_TRUTH_REPO=$_SOURCE_OF_TRUTH_REPO'
   - 'SOURCE_OF_TRUTH_BRANCH=$_SOURCE_OF_TRUTH_BRANCH'
   - 'SOURCE_OF_TRUTH_PATH=$_SOURCE_OF_TRUTH_PATH'
+  - 'FLEET_CONFIG_PATH=$_FLEET_CONFIG_PATH'
   - 'GIT_SECRET_ID=$_GIT_SECRET_ID'
   - 'GIT_SECRETS_PROJECT_ID=$_GIT_SECRETS_PROJECT_ID'
   - 'SKIP_HEALTH_CHECK=$_SKIP_HEALTH_CHECK'

@@ -25,6 +25,7 @@ locals {
     { _SOURCE_OF_TRUTH_REPO = var.source_of_truth_repo },
     { _SOURCE_OF_TRUTH_BRANCH = var.source_of_truth_branch },
     { _SOURCE_OF_TRUTH_PATH = var.source_of_truth_path },
+    { _FLEET_CONFIG_PATH = var.fleet_config_path },
     { _GIT_SECRET_ID = var.git_secret_id },
     { _GIT_SECRETS_PROJECT_ID = local.project_id_secrets },
     { _TIMEOUT_IN_SECONDS = var.cluster_creation_timeout },
