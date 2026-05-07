@@ -25,6 +25,7 @@ locals {
     { _SOURCE_OF_TRUTH_REPO = var.source_of_truth_repo },
     { _SOURCE_OF_TRUTH_BRANCH = var.source_of_truth_branch },
     { _SOURCE_OF_TRUTH_PATH = var.source_of_truth_path },
+    { _FLEET_CONFIG_PATH = var.fleet_config_path },
     { _GIT_SECRET_ID = var.git_secret_id },
     { _GIT_SECRETS_PROJECT_ID = local.project_id_secrets },
     { _TIMEOUT_IN_SECONDS = var.cluster_creation_timeout },
@@ -292,6 +293,7 @@ resource "google_project_iam_member" "zone-watcher-builder-roles" {
 
 # zone-watcher cloud function
 resource "google_cloudfunctions2_function" "zone-watcher" {
+  depends_on  = [google_project_iam_member.zone-watcher-builder-roles]
   name        = "zone-watcher-${var.environment}"
   location    = var.region
   description = "zone watcher function"
@@ -363,6 +365,7 @@ resource "google_cloud_scheduler_job" "job" {
 
 # Cluster Watcher cloud function
 resource "google_cloudfunctions2_function" "cluster-watcher" {
+  depends_on  = [google_project_iam_member.zone-watcher-builder-roles]
   name        = "cluster-watcher-${var.environment}"
   location    = var.region
   description = "cluster watcher function"
@@ -437,6 +440,7 @@ resource "google_cloud_scheduler_job" "cluster-watcher-job" {
 # Zone Active Metric Ingestion cloud function
 resource "google_cloudfunctions2_function" "zone-active-metric" {
   count       = var.deploy_zone_active_monitor ? 1 : 0
+  depends_on  = [google_project_iam_member.zone-watcher-builder-roles]
   name        = "zone-active-metric-${var.environment}"
   location    = var.region
   description = "zone active metric generator"
