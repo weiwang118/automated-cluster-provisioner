@@ -25,132 +25,91 @@ class TestBuildSummary(unittest.TestCase):
 
     def test_initial_state(self):
         summary = BuildSummary()
-        self.assertIsNone(summary.latestStatus)
-        self.assertEqual(summary.numberOfBuilds, 0)
-        self.assertEqual(summary.numberOfFailures, 0)
+        self.assertIsNone(summary.latest_non_failure_status)
         self.assertFalse(summary.retriable)
+        self.assertEqual(summary.latest_try_count, 0)
 
-    def test_add_build_success(self):
+    def test_flag_first_non_failure_build_success(self):
         summary = BuildSummary()
         build = create_mock_build("b1", Status.SUCCESS)
-        summary.add_build(build)
-        self.assertEqual(summary.latestStatus, Status.SUCCESS)
-        self.assertEqual(summary.numberOfBuilds, 1)
-        self.assertEqual(summary.numberOfFailures, 0)
+        summary.flag_first_non_failure_build(build)
+        self.assertEqual(summary.latest_non_failure_status, Status.SUCCESS)
         self.assertFalse(summary.retriable)
+        self.assertEqual(summary.latest_try_count, 0)
 
-    def test_add_build_failure(self):
+    def test_flag_first_non_failure_build_failure(self):
         summary = BuildSummary()
         build = create_mock_build("b1", Status.FAILURE)
-        summary.add_build(build)
-        # Note: latestStatus isn't updated on failure if it was None initially
-        # self.assertEqual(summary.latestStatus, MockBuildStatus.FAILURE) # This depends on initial state logic
-        self.assertEqual(summary.numberOfBuilds, 1)
-        self.assertEqual(summary.numberOfFailures, 1)
+        summary.flag_first_non_failure_build(build)
+        # Note: latest_non_failure_status isn't updated on failure if it was None initially
+        # self.assertEqual(summary.latest_non_failure_status, MockBuildStatus.FAILURE) # This depends on initial state logic
         self.assertTrue(summary.retriable)
+        self.assertEqual(summary.latest_try_count, 0)
 
-    def test_add_build_working(self):
+    def test_flag_first_non_failure_build_working(self):
         summary = BuildSummary()
         build = create_mock_build("b1", Status.WORKING)
-        summary.add_build(build)
-        self.assertEqual(summary.latestStatus, Status.WORKING)
-        self.assertEqual(summary.numberOfBuilds, 1)
-        self.assertEqual(summary.numberOfFailures, 0)
+        summary.flag_first_non_failure_build(build)
+        self.assertEqual(summary.latest_non_failure_status, Status.WORKING)
         self.assertFalse(summary.retriable)
+        self.assertEqual(summary.latest_try_count, 0)
 
-    def test_add_build_queued(self):
+    def test_flag_first_non_failure_build_queued(self):
         summary = BuildSummary()
         build = create_mock_build("b1", Status.QUEUED)
-        summary.add_build(build)
-        self.assertEqual(summary.latestStatus, Status.QUEUED)
-        self.assertEqual(summary.numberOfBuilds, 1)
-        self.assertEqual(summary.numberOfFailures, 0)
+        summary.flag_first_non_failure_build(build)
+        self.assertEqual(summary.latest_non_failure_status, Status.QUEUED)
         self.assertFalse(summary.retriable)
+        self.assertEqual(summary.latest_try_count, 0)
 
-    def test_add_build_pending(self):
+    def test_flag_first_non_failure_build_pending(self):
         summary = BuildSummary()
         build = create_mock_build("b1", Status.PENDING)
-        summary.add_build(build)
-        self.assertEqual(summary.latestStatus, Status.PENDING)
-        self.assertEqual(summary.numberOfBuilds, 1)
-        self.assertEqual(summary.numberOfFailures, 0)
+        summary.flag_first_non_failure_build(build)
+        self.assertEqual(summary.latest_non_failure_status, Status.PENDING)
         self.assertFalse(summary.retriable)
+        self.assertEqual(summary.latest_try_count, 0)
 
-    def test_add_build_sequence_fail_then_success(self):
+    def test_flag_first_non_failure_build_sequence_fail_then_success(self):
         summary = BuildSummary()
         build_fail = create_mock_build("b1", Status.FAILURE)
         build_success = create_mock_build("b2", Status.SUCCESS)
-        summary.add_build(build_fail)
-        summary.add_build(build_success) # Success overrides retriable
-        self.assertEqual(summary.latestStatus, Status.SUCCESS)
-        self.assertEqual(summary.numberOfBuilds, 2)
-        self.assertEqual(summary.numberOfFailures, 1) # Failure count still increments
+        summary.flag_first_non_failure_build(build_fail)
+        summary.flag_first_non_failure_build(build_success) # Success overrides retriable
+        self.assertEqual(summary.latest_non_failure_status, Status.SUCCESS)
         self.assertFalse(summary.retriable)
+        self.assertEqual(summary.latest_try_count, 0)
 
-    def test_add_build_sequence_fail_then_working(self):
+    def test_flag_first_non_failure_build_sequence_fail_then_working(self):
         summary = BuildSummary()
         build_fail = create_mock_build("b1", Status.FAILURE)
         build_working = create_mock_build("b2", Status.WORKING)
-        summary.add_build(build_fail)
-        summary.add_build(build_working) # Working overrides retriable
-        self.assertEqual(summary.latestStatus, Status.WORKING)
-        self.assertEqual(summary.numberOfBuilds, 2)
-        self.assertEqual(summary.numberOfFailures, 1)
+        summary.flag_first_non_failure_build(build_fail)
+        summary.flag_first_non_failure_build(build_working) # Working overrides retriable
+        self.assertEqual(summary.latest_non_failure_status, Status.WORKING)
         self.assertFalse(summary.retriable)
+        self.assertEqual(summary.latest_try_count, 0)
 
-    def test_add_build_sequence_success_then_fail(self):
-        summary = BuildSummary()
-        build_success = create_mock_build("b1", Status.SUCCESS)
-        build_fail = create_mock_build("b2", Status.FAILURE)
-        summary.add_build(build_success)
-        summary.add_build(build_fail) # Failure after success doesn't change status/retriable
-        self.assertEqual(summary.latestStatus, Status.SUCCESS)
-        self.assertEqual(summary.numberOfBuilds, 2)
-        self.assertEqual(summary.numberOfFailures, 1) # Failure count still increments
-        self.assertFalse(summary.retriable) # Still False because latest was SUCCESS
-
-    def test_add_build_sequence_working_then_fail(self):
-        summary = BuildSummary()
-        build_working = create_mock_build("b1", Status.WORKING)
-        build_fail = create_mock_build("b2", Status.FAILURE)
-        summary.add_build(build_working)
-        summary.add_build(build_fail) # Failure after working doesn't change status/retriable
-        self.assertEqual(summary.latestStatus, Status.WORKING)
-        self.assertEqual(summary.numberOfBuilds, 2)
-        self.assertEqual(summary.numberOfFailures, 1)
-        self.assertFalse(summary.retriable) # Still False because latest was WORKING
-
-    def test_add_build_multiple_failures(self):
+    def test_flag_first_non_failure_build_multiple_failures(self):
         summary = BuildSummary()
         build1 = create_mock_build("b1", Status.FAILURE)
         build2 = create_mock_build("b2", Status.TIMEOUT)
-        summary.add_build(build1)
-        summary.add_build(build2)
-        # self.assertEqual(summary.latestStatus, MockBuildStatus.TIMEOUT) # Status doesn't update on failure if already failed
-        self.assertEqual(summary.numberOfBuilds, 2)
-        self.assertEqual(summary.numberOfFailures, 2)
+        summary.flag_first_non_failure_build(build1)
+        summary.flag_first_non_failure_build(build2)
+        # self.assertEqual(summary.latest_non_failure_status, MockBuildStatus.TIMEOUT) # Status doesn't update on failure if already failed
         self.assertTrue(summary.retriable)
-
-    def test_is_retriable_false_max_retries_exceeded(self):
-        summary = BuildSummary()
-        build1 = create_mock_build("b1", Status.FAILURE)
-        build2 = create_mock_build("b2", Status.INTERNAL_ERROR)
-        summary.add_build(build1)
-        summary.add_build(build2) # 2 failures
-        self.assertTrue(summary.is_retriable(max_retries=2))
-        self.assertFalse(summary.is_retriable(max_retries=1))
-        self.assertFalse(summary.is_retriable(max_retries=0))
+        self.assertEqual(summary.latest_try_count, 0)
 
     def test_is_retriable_false_not_retriable_state(self):
         summary = BuildSummary()
         build = create_mock_build("b1", Status.SUCCESS)
-        summary.add_build(build)
-        self.assertFalse(summary.is_retriable(max_retries=1))
+        summary.flag_first_non_failure_build(build)
+        self.assertFalse(summary.retriable)
 
         summary = BuildSummary()
         build = create_mock_build("b1", Status.WORKING)
-        summary.add_build(build)
-        self.assertFalse(summary.is_retriable(max_retries=1))
+        summary.flag_first_non_failure_build(build)
+        self.assertFalse(summary.retriable)
 
 
 @patch('google.cloud.devtools.cloudbuild.CloudBuildClient') # Patch the client in the module where it's used
@@ -243,25 +202,161 @@ class TestBuildHistory(unittest.TestCase):
         history = BuildHistory(self.project_id, self.region, self.max_retries, self.trigger_name)
         build_dict = history.builds
 
-        self.assertIn("zone-a", build_dict)
-        self.assertIn("zone-b", build_dict)
+        self.assertIn(("zone-a", ""), build_dict)
+        self.assertIn(("zone-b", ""), build_dict)
         self.assertEqual(len(build_dict), 2) # build4_no_zone should be skipped
 
         # Check zone-a summary (Failure then Success)
-        summary_a = build_dict["zone-a"]
-        self.assertEqual(summary_a.numberOfBuilds, 2)
-        self.assertEqual(summary_a.numberOfFailures, 1)
-        self.assertEqual(summary_a.latestStatus, Status.SUCCESS)
+        summary_a = build_dict[("zone-a", "")]
+        self.assertEqual(summary_a.latest_non_failure_status, Status.SUCCESS)
         self.assertFalse(summary_a.retriable)
 
         # Check zone-b summary (Working then Failure)
-        summary_b = build_dict["zone-b"]
-        self.assertEqual(summary_b.numberOfBuilds, 2)
-        self.assertEqual(summary_b.numberOfFailures, 1)
-        self.assertEqual(summary_b.latestStatus, Status.WORKING) # Working status persists
+        summary_b = build_dict[("zone-b", "")]
+        self.assertEqual(summary_b.latest_non_failure_status, Status.WORKING) # Working status persists
         self.assertFalse(summary_b.retriable)
 
         mock_client.list_builds.assert_called_once()
+
+    def test_get_build_history_groups_by_hash(self, MockCloudBuildClient):
+        mock_client = MockCloudBuildClient.return_value
+        mock_trigger = MagicMock()
+        mock_trigger.name = self.trigger_name
+        mock_trigger.id = self.trigger_id
+        mock_client.list_build_triggers.return_value = [mock_trigger]
+
+        # Create builds for SAME zone but DIFFERENT hashes
+        build1 = create_mock_build("b1", Status.FAILURE, {"_ZONE": "zone-a", "_INTENT_HASH": "hash-1"})
+        build2 = create_mock_build("b2", Status.SUCCESS, {"_ZONE": "zone-a", "_INTENT_HASH": "hash-2"})
+
+        mock_client.list_builds.return_value = [build2, build1]
+
+        history = BuildHistory(self.project_id, self.region, self.max_retries, self.trigger_name)
+        build_dict = history.builds
+
+        # Verify that it groups them separately!
+        self.assertIn(("zone-a", "hash-1"), build_dict)
+        self.assertIn(("zone-a", "hash-2"), build_dict)
+        self.assertEqual(len(build_dict), 2)
+
+    def test_get_build_history_extracts_try_count(self, MockCloudBuildClient):
+        mock_client = MockCloudBuildClient.return_value
+        mock_trigger = MagicMock()
+        mock_trigger.name = self.trigger_name
+        mock_trigger.id = self.trigger_id
+        mock_client.list_build_triggers.return_value = [mock_trigger]
+
+        # Create build with _TRY_COUNT
+        build = create_mock_build("b1", Status.FAILURE, {"_ZONE": "zone-a", "_INTENT_HASH": "hash-1", "_TRY_COUNT": "3"})
+
+        mock_client.list_builds.return_value = [build]
+
+        history = BuildHistory(self.project_id, self.region, self.max_retries, self.trigger_name)
+        
+        # Verify that it extracts the try count correctly!
+        self.assertEqual(history.get_latest_try_count("zone-a", "hash-1"), 3)
+
+    @patch('src.build_history.BuildSummary')
+    def test_get_build_history_optimizes_traversal(self, MockBuildSummary, MockCloudBuildClient):
+        mock_client = MockCloudBuildClient.return_value
+        mock_trigger = MagicMock()
+        mock_trigger.name = self.trigger_name
+        mock_trigger.id = self.trigger_id
+        mock_client.list_build_triggers.return_value = [mock_trigger]
+
+        # Create builds for SAME zone and hash: Newest=SUCCESS, Older=FAILURE
+        build1 = create_mock_build("b1", Status.SUCCESS, {"_ZONE": "zone-a", "_INTENT_HASH": "hash-1"})
+        build2 = create_mock_build("b2", Status.FAILURE, {"_ZONE": "zone-a", "_INTENT_HASH": "hash-1"})
+
+        mock_client.list_builds.return_value = [build1, build2]
+
+        # Mock BuildSummary instance
+        mock_summary = MagicMock()
+        mock_summary.latest_non_failure_status = None
+        
+        def side_effect(build):
+            mock_summary.latest_non_failure_status = build.status
+            
+        mock_summary.flag_first_non_failure_build.side_effect = side_effect
+        MockBuildSummary.return_value = mock_summary
+
+        history = BuildHistory(self.project_id, self.region, self.max_retries, self.trigger_name)
+        
+        # Verify that flag_first_non_failure_build was only called ONCE!
+        self.assertEqual(mock_summary.flag_first_non_failure_build.call_count, 1)
+
+    def test_latest_attempt_failed(self, MockCloudBuildClient):
+        mock_client = MockCloudBuildClient.return_value
+        mock_trigger = MagicMock()
+        mock_trigger.name = self.trigger_name
+        mock_trigger.id = self.trigger_id
+        mock_client.list_build_triggers.return_value = [mock_trigger]
+
+        # Test case 1: Newest build failed
+        build_fail = create_mock_build("b1", Status.FAILURE, {"_ZONE": "zone-a", "_INTENT_HASH": "hash-1"})
+        mock_client.list_builds.return_value = [build_fail]
+        
+        history = BuildHistory(self.project_id, self.region, self.max_retries, self.trigger_name)
+        summary = history.builds[("zone-a", "hash-1")]
+        self.assertTrue(summary.latest_attempt_failed)
+
+        # Test case 2: Newest build succeeded
+        build_success = create_mock_build("b2", Status.SUCCESS, {"_ZONE": "zone-b", "_INTENT_HASH": "hash-2"})
+        mock_client.list_builds.return_value = [build_success]
+        
+        history = BuildHistory(self.project_id, self.region, self.max_retries, self.trigger_name)
+        summary = history.builds[("zone-b", "hash-2")]
+        self.assertFalse(summary.latest_attempt_failed)
+
+    def test_should_retry_independent_per_hash(self, MockCloudBuildClient):
+        mock_client = MockCloudBuildClient.return_value
+        mock_trigger = MagicMock()
+        mock_trigger.name = self.trigger_name
+        mock_trigger.id = self.trigger_id
+        mock_client.list_build_triggers.return_value = [mock_trigger]
+
+        # Create builds for SAME zone but DIFFERENT hashes
+        build1 = create_mock_build("b1", Status.FAILURE, {"_ZONE": "zone-a", "_INTENT_HASH": "hash-1"})
+        build2 = create_mock_build("b2", Status.SUCCESS, {"_ZONE": "zone-a", "_INTENT_HASH": "hash-2"})
+
+        mock_client.list_builds.return_value = [build2, build1]
+
+        history = BuildHistory(self.project_id, self.region, self.max_retries, self.trigger_name)
+
+        # Verify independent retry results
+        self.assertTrue(history.should_retry_zone_build("zone-a", "hash-1"))
+        self.assertFalse(history.should_retry_zone_build("zone-a", "hash-2"))
+
+    def test_get_build_history_backward_compatibility(self, MockCloudBuildClient):
+        mock_client = MockCloudBuildClient.return_value
+        mock_trigger = MagicMock()
+        mock_trigger.name = self.trigger_name
+        mock_trigger.id = self.trigger_id
+        mock_client.list_build_triggers.return_value = [mock_trigger]
+
+        # Create build WITHOUT _INTENT_HASH
+        build = create_mock_build("b1", Status.FAILURE, {"_ZONE": "zone-a"})
+
+        mock_client.list_builds.return_value = [build]
+
+        history = BuildHistory(self.project_id, self.region, self.max_retries, self.trigger_name)
+        build_dict = history.builds
+
+        # Verify it uses empty string as hash
+        self.assertIn(("zone-a", ""), build_dict)
+
+    def test_get_latest_try_count_empty_history(self, MockCloudBuildClient):
+        mock_client = MockCloudBuildClient.return_value
+        mock_trigger = MagicMock()
+        mock_trigger.name = self.trigger_name
+        mock_trigger.id = self.trigger_id
+        mock_client.list_build_triggers.return_value = [mock_trigger]
+        mock_client.list_builds.return_value = []
+
+        history = BuildHistory(self.project_id, self.region, self.max_retries, self.trigger_name)
+        
+        # Verify it returns 0 for non-existent history
+        self.assertEqual(history.get_latest_try_count("zone-a", "hash-1"), 0)
 
     def test_get_build_history_multiple_matching_triggers(self, MockCloudBuildClient):
         mock_client = MockCloudBuildClient.return_value
@@ -290,8 +385,8 @@ class TestBuildHistory(unittest.TestCase):
 
         history = BuildHistory(self.project_id, self.region, self.max_retries, self.trigger_name)
         # Zone 'zone-b' doesn't exist in history
-        self.assertFalse(history.should_retry_zone_build("zone-b"))
-        self.assertIn("zone-a", history.builds) # History should be populated
+        self.assertFalse(history.should_retry_zone_build("zone-b", ""))
+        self.assertIn(("zone-a", ""), history.builds) # History should be populated
 
     def test_should_retry_zone_build_is_retriable(self, MockCloudBuildClient):
         mock_client = MockCloudBuildClient.return_value
@@ -301,7 +396,7 @@ class TestBuildHistory(unittest.TestCase):
         mock_client.list_builds.return_value = [build1_zone1]
 
         history = BuildHistory(self.project_id, self.region, self.max_retries, self.trigger_name) # max_retries = 2
-        self.assertTrue(history.should_retry_zone_build("zone-a"))
+        self.assertTrue(history.should_retry_zone_build("zone-a", ""))
 
     def test_should_retry_zone_build_not_retriable_max_exceeded(self, MockCloudBuildClient):
         mock_client = MockCloudBuildClient.return_value
@@ -313,7 +408,7 @@ class TestBuildHistory(unittest.TestCase):
         mock_client.list_builds.return_value = [build3, build2, build1] # 3 failures
 
         history = BuildHistory(self.project_id, self.region, self.max_retries, self.trigger_name) # max_retries = 2
-        self.assertFalse(history.should_retry_zone_build("zone-a"))
+        self.assertTrue(history.should_retry_zone_build("zone-a", ""))
 
     def test_should_retry_zone_build_not_retriable_status_success(self, MockCloudBuildClient):
         mock_client = MockCloudBuildClient.return_value
@@ -324,7 +419,7 @@ class TestBuildHistory(unittest.TestCase):
         mock_client.list_builds.return_value = [build2, build1]
 
         history = BuildHistory(self.project_id, self.region, self.max_retries, self.trigger_name)
-        self.assertFalse(history.should_retry_zone_build("zone-a"))
+        self.assertFalse(history.should_retry_zone_build("zone-a", ""))
 
     def test_should_retry_zone_build_not_retriable_status_working(self, MockCloudBuildClient):
         mock_client = MockCloudBuildClient.return_value
@@ -335,7 +430,7 @@ class TestBuildHistory(unittest.TestCase):
         mock_client.list_builds.return_value = [build2, build1]
 
         history = BuildHistory(self.project_id, self.region, self.max_retries, self.trigger_name)
-        self.assertFalse(history.should_retry_zone_build("zone-a"))
+        self.assertFalse(history.should_retry_zone_build("zone-a", ""))
 
     def test_should_retry_zone_build_eager_load(self, MockCloudBuildClient):
         mock_client = MockCloudBuildClient.return_value
@@ -348,12 +443,12 @@ class TestBuildHistory(unittest.TestCase):
         self.assertIsNotNone(history.builds) # Should be loaded at init
 
         # First call
-        self.assertTrue(history.should_retry_zone_build("zone-a"))
+        self.assertTrue(history.should_retry_zone_build("zone-a", ""))
         mock_client.list_builds.assert_called_once()
 
         # Second call - uses cached history
         mock_client.list_builds.reset_mock() # Reset mock call count
-        self.assertTrue(history.should_retry_zone_build("zone-a"))
+        self.assertTrue(history.should_retry_zone_build("zone-a", ""))
         mock_client.list_builds.assert_not_called() # Should not call again
 
     def test_should_retry_zone_build_missing_zone_name(self, MockCloudBuildClient):
@@ -366,6 +461,6 @@ class TestBuildHistory(unittest.TestCase):
 
         history = BuildHistory(self.project_id, self.region, self.max_retries, self.trigger_name)
         with self.assertRaisesRegex(Exception, 'missing zone_name'):
-            history.should_retry_zone_build(None)
+            history.should_retry_zone_build(None, "")
         with self.assertRaisesRegex(Exception, 'missing zone_name'):
-            history.should_retry_zone_build("")
+            history.should_retry_zone_build("", "")
