@@ -29,73 +29,73 @@ class TestBuildSummary(unittest.TestCase):
         self.assertFalse(summary.retriable)
         self.assertEqual(summary.latest_try_count, 0)
 
-    def test_add_build_success(self):
+    def test_flag_first_non_failure_build_success(self):
         summary = BuildSummary()
         build = create_mock_build("b1", Status.SUCCESS)
-        summary.add_build(build)
+        summary.flag_first_non_failure_build(build)
         self.assertEqual(summary.latest_non_failure_status, Status.SUCCESS)
         self.assertFalse(summary.retriable)
         self.assertEqual(summary.latest_try_count, 0)
 
-    def test_add_build_failure(self):
+    def test_flag_first_non_failure_build_failure(self):
         summary = BuildSummary()
         build = create_mock_build("b1", Status.FAILURE)
-        summary.add_build(build)
+        summary.flag_first_non_failure_build(build)
         # Note: latest_non_failure_status isn't updated on failure if it was None initially
         # self.assertEqual(summary.latest_non_failure_status, MockBuildStatus.FAILURE) # This depends on initial state logic
         self.assertTrue(summary.retriable)
         self.assertEqual(summary.latest_try_count, 0)
 
-    def test_add_build_working(self):
+    def test_flag_first_non_failure_build_working(self):
         summary = BuildSummary()
         build = create_mock_build("b1", Status.WORKING)
-        summary.add_build(build)
+        summary.flag_first_non_failure_build(build)
         self.assertEqual(summary.latest_non_failure_status, Status.WORKING)
         self.assertFalse(summary.retriable)
         self.assertEqual(summary.latest_try_count, 0)
 
-    def test_add_build_queued(self):
+    def test_flag_first_non_failure_build_queued(self):
         summary = BuildSummary()
         build = create_mock_build("b1", Status.QUEUED)
-        summary.add_build(build)
+        summary.flag_first_non_failure_build(build)
         self.assertEqual(summary.latest_non_failure_status, Status.QUEUED)
         self.assertFalse(summary.retriable)
         self.assertEqual(summary.latest_try_count, 0)
 
-    def test_add_build_pending(self):
+    def test_flag_first_non_failure_build_pending(self):
         summary = BuildSummary()
         build = create_mock_build("b1", Status.PENDING)
-        summary.add_build(build)
+        summary.flag_first_non_failure_build(build)
         self.assertEqual(summary.latest_non_failure_status, Status.PENDING)
         self.assertFalse(summary.retriable)
         self.assertEqual(summary.latest_try_count, 0)
 
-    def test_add_build_sequence_fail_then_success(self):
+    def test_flag_first_non_failure_build_sequence_fail_then_success(self):
         summary = BuildSummary()
         build_fail = create_mock_build("b1", Status.FAILURE)
         build_success = create_mock_build("b2", Status.SUCCESS)
-        summary.add_build(build_fail)
-        summary.add_build(build_success) # Success overrides retriable
+        summary.flag_first_non_failure_build(build_fail)
+        summary.flag_first_non_failure_build(build_success) # Success overrides retriable
         self.assertEqual(summary.latest_non_failure_status, Status.SUCCESS)
         self.assertFalse(summary.retriable)
         self.assertEqual(summary.latest_try_count, 0)
 
-    def test_add_build_sequence_fail_then_working(self):
+    def test_flag_first_non_failure_build_sequence_fail_then_working(self):
         summary = BuildSummary()
         build_fail = create_mock_build("b1", Status.FAILURE)
         build_working = create_mock_build("b2", Status.WORKING)
-        summary.add_build(build_fail)
-        summary.add_build(build_working) # Working overrides retriable
+        summary.flag_first_non_failure_build(build_fail)
+        summary.flag_first_non_failure_build(build_working) # Working overrides retriable
         self.assertEqual(summary.latest_non_failure_status, Status.WORKING)
         self.assertFalse(summary.retriable)
         self.assertEqual(summary.latest_try_count, 0)
 
-    def test_add_build_multiple_failures(self):
+    def test_flag_first_non_failure_build_multiple_failures(self):
         summary = BuildSummary()
         build1 = create_mock_build("b1", Status.FAILURE)
         build2 = create_mock_build("b2", Status.TIMEOUT)
-        summary.add_build(build1)
-        summary.add_build(build2)
+        summary.flag_first_non_failure_build(build1)
+        summary.flag_first_non_failure_build(build2)
         # self.assertEqual(summary.latest_non_failure_status, MockBuildStatus.TIMEOUT) # Status doesn't update on failure if already failed
         self.assertTrue(summary.retriable)
         self.assertEqual(summary.latest_try_count, 0)
@@ -103,12 +103,12 @@ class TestBuildSummary(unittest.TestCase):
     def test_is_retriable_false_not_retriable_state(self):
         summary = BuildSummary()
         build = create_mock_build("b1", Status.SUCCESS)
-        summary.add_build(build)
+        summary.flag_first_non_failure_build(build)
         self.assertFalse(summary.retriable)
 
         summary = BuildSummary()
         build = create_mock_build("b1", Status.WORKING)
-        summary.add_build(build)
+        summary.flag_first_non_failure_build(build)
         self.assertFalse(summary.retriable)
 
 
@@ -277,13 +277,13 @@ class TestBuildHistory(unittest.TestCase):
         def side_effect(build):
             mock_summary.latest_non_failure_status = build.status
             
-        mock_summary.add_build.side_effect = side_effect
+        mock_summary.flag_first_non_failure_build.side_effect = side_effect
         MockBuildSummary.return_value = mock_summary
 
         history = BuildHistory(self.project_id, self.region, self.max_retries, self.trigger_name)
         
-        # Verify that add_build was only called ONCE!
-        self.assertEqual(mock_summary.add_build.call_count, 1)
+        # Verify that flag_first_non_failure_build was only called ONCE!
+        self.assertEqual(mock_summary.flag_first_non_failure_build.call_count, 1)
 
     def test_latest_attempt_failed(self, MockCloudBuildClient):
         mock_client = MockCloudBuildClient.return_value

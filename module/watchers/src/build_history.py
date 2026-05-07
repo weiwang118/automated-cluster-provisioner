@@ -13,7 +13,7 @@ class BuildSummary:
     latest_try_count: int = 0
     latest_attempt_failed: bool = False
 
-    def add_build(self, build: cloudbuild.Build):
+    def flag_first_non_failure_build(self, build: cloudbuild.Build):
         # NOTE on processing order and retry logic:
         # 1. Processing Order: Since ListBuilds returns newest first, this loop processes builds from newest to oldest.
         # 2. Logic Intent: This logic effectively finds the most recent non-failure build (moving backwards in time)
@@ -24,10 +24,7 @@ class BuildSummary:
         #    or when there are not enough free machines.
 
         # latest_non_failure_status will only be updated with non-failure statuses.
-        if build.status in (cloudbuild.Build.Status.QUEUED, cloudbuild.Build.Status.PENDING, cloudbuild.Build.Status.WORKING):
-            self.latest_non_failure_status = build.status
-            self.retriable = False
-        elif build.status == cloudbuild.Build.Status.SUCCESS:
+        if build.status in (cloudbuild.Build.Status.QUEUED, cloudbuild.Build.Status.PENDING, cloudbuild.Build.Status.WORKING, cloudbuild.Build.Status.SUCCESS):
             self.latest_non_failure_status = build.status
             self.retriable = False
         else:
@@ -113,10 +110,10 @@ class BuildHistory:
                 summary = build_summary_dict[key]
                 # Since we process from newest to oldest, once we have found a non-failure
                 # status (latest_non_failure_status is set), older builds will not change the outcome.
-                # We can safely skip calling add_build for them.
+                # We can safely skip calling flag_first_non_failure_build for them.
                 if summary.latest_non_failure_status is not None:
                     continue
-                summary.add_build(response)
+                summary.flag_first_non_failure_build(response)
             else:
                 summary = BuildSummary()
                 
@@ -130,7 +127,7 @@ class BuildHistory:
                 
                 try_count_str = response.substitutions.get("_TRY_COUNT", "0")
                 summary.latest_try_count = int(try_count_str)
-                summary.add_build(response)
+                summary.flag_first_non_failure_build(response)
                 logger.info(f"Found latest build for zone {zone} with hash {intent_hash}. Latest try_count={summary.latest_try_count}, latest_attempt_failed={summary.latest_attempt_failed}")
                 build_summary_dict[key] = summary
 
