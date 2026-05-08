@@ -220,8 +220,26 @@ steps:
       local header=$(head -1 "$fleet_config_path")
       local data="$header"$'\n'"$row"
       
-      parse_csv_required "$data" "cluster_version"
+      local resolved_version
+      resolved_version=$(parse_csv_required "$data" "cluster_version") || return 1
+      echo ">>> [Config] Resolved cluster version $resolved_version from fleet version config file $FLEET_CONFIG_PATH for $project_id" >&2
+      echo "$resolved_version"
     }
+
+    function assign_required() {
+      local var_name="$1"
+      local col_name="$2"
+      local val
+      
+      val=$(parse_csv_required "$CLUSTER_INTENT" "$col_name")
+      if [[ $? -ne 0 ]]; then
+        exit 1
+      fi
+      
+      eval "export $var_name=\"$val\""
+    }
+
+
 
     # Use this function to determine if the required version is met. 
     # Return true if met. Return false if not met. 
@@ -283,21 +301,23 @@ steps:
     export CLUSTER_INTENT="$CLUSTER_INTENT_HEADER"$'\n'"$CLUSTER_INTENT_ROW"
 
     # Set parameters from cluster intent
-    export MACHINE_PROJECT_ID=$(parse_csv_required "$CLUSTER_INTENT" "machine_project_id")
-    export FLEET_PROJECT_ID=$(parse_csv_required "$CLUSTER_INTENT" "fleet_project_id")
-    export CLUSTER_NAME=$(parse_csv_required "$CLUSTER_INTENT" "cluster_name")
-    export LOCATION=$(parse_csv_required "$CLUSTER_INTENT" "location")
+    assign_required MACHINE_PROJECT_ID "machine_project_id"
+    assign_required FLEET_PROJECT_ID "fleet_project_id"
+    assign_required CLUSTER_NAME "cluster_name"
+    assign_required LOCATION "location"
     export ZONE_ID="projects/${MACHINE_PROJECT_ID}/locations/${LOCATION}/zones/${STORE_ID}"
-    export NODE_COUNT=$(parse_csv_required "$CLUSTER_INTENT" "node_count")
-    export CLUSTER_IPV4_CIDR=$(parse_csv_required "$CLUSTER_INTENT" "cluster_ipv4_cidr")
-    export SERVICES_IPV4_CIDR=$(parse_csv_required "$CLUSTER_INTENT" "services_ipv4_cidr")
-    export EXTERNAL_LOAD_BALANCER_IPV4_ADDRESS_POOLS=$(parse_csv_required "$CLUSTER_INTENT" "external_load_balancer_ipv4_address_pools")
-    export SYNC_REPO=$(parse_csv_required "$CLUSTER_INTENT" "sync_repo")
-    export SYNC_BRANCH=$(parse_csv_required "$CLUSTER_INTENT" "sync_branch")
-    export SYNC_DIR=$(parse_csv_required "$CLUSTER_INTENT" "sync_dir")
-    export SECRETS_PROJECT_ID=$(parse_csv_required "$CLUSTER_INTENT" "secrets_project_id")
-    export GIT_TOKEN_SECRETS_MANAGER_NAME=$(parse_csv_required "$CLUSTER_INTENT" "git_token_secrets_manager_name")
-    export CLUSTER_VERSION=$(resolve_cluster_version "$CLUSTER_INTENT" "$FLEET_PROJECT_ID" "$SOURCE_OF_TRUTH_PATH")
+    assign_required NODE_COUNT "node_count"
+    assign_required CLUSTER_IPV4_CIDR "cluster_ipv4_cidr"
+    assign_required SERVICES_IPV4_CIDR "services_ipv4_cidr"
+    assign_required EXTERNAL_LOAD_BALANCER_IPV4_ADDRESS_POOLS "external_load_balancer_ipv4_address_pools"
+    assign_required SYNC_REPO "sync_repo"
+    assign_required SYNC_BRANCH "sync_branch"
+    assign_required SYNC_DIR "sync_dir"
+    assign_required SECRETS_PROJECT_ID "secrets_project_id"
+    assign_required GIT_TOKEN_SECRETS_MANAGER_NAME "git_token_secrets_manager_name"
+    
+    export CLUSTER_VERSION=$(resolve_cluster_version "$CLUSTER_INTENT" "$FLEET_PROJECT_ID" "$SOURCE_OF_TRUTH_PATH") || exit 1
+    
     export MAINTENANCE_WINDOW_START=$(parse_csv_optional "$CLUSTER_INTENT" "maintenance_window_start")
     export MAINTENANCE_WINDOW_END=$(parse_csv_optional "$CLUSTER_INTENT" "maintenance_window_end")
     export MAINTENANCE_WINDOW_RECURRENCE=$(parse_csv_optional "$CLUSTER_INTENT" "maintenance_window_recurrence")
