@@ -191,6 +191,9 @@ steps:
       echo "$output"
     }
 
+    # Resolves the cluster version to use.
+    # 1. Tries to get the version from the main cluster intent CSV.
+    # 2. If not specified, falls back to fleet version config file based on fleet_project_id.
     function resolve_cluster_version() {
       local intent="$1"
       local project_id="$2"
