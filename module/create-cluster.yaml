@@ -117,12 +117,15 @@ steps:
 
       SIGNAL_URI="${HARDWARE_MANAGEMENT_API_ENDPOINT}/${HARDWARE_MANAGEMENT_API_VERSION}/${zone_store_path}:signal"
 
+      # Use jq to safely generate JSON payload. 
+      # Manual string concatenation (e.g. "{\"key\": \"$VAL\"}") breaks if $VAL contains 
+      # unescaped double quotes (common in gcloud error messages). jq --arg handles escaping automatically.
       if [[ $state_signal == "FACTORY_TURNUP_CHECKS_STARTED" ]]; then
-        state_signal_payload="{\"state_signal\": \"${state_signal}\", \"step\": \"${step}\"}"
+        state_signal_payload=$(jq -n --arg ss "$state_signal" --arg st "$step" '{"state_signal": $ss, "step": $st}')
       elif [[ $state_signal == "FACTORY_TURNUP_CHECKS_FAILED" ]]; then
-        state_signal_payload="{\"state_signal\": \"${state_signal}\", \"step\": \"${step}\", \"details\": \"${details}\"}"
+        state_signal_payload=$(jq -n --arg ss "$state_signal" --arg st "$step" --arg dt "$details" '{"state_signal": $ss, "step": $st, "details": $dt}')
       else
-        state_signal_payload="{\"state_signal\": \"${state_signal}\"}"
+        state_signal_payload=$(jq -n --arg ss "$state_signal" '{"state_signal": $ss}')
       fi
 
       echo ">>> [Zone Signal] Sending '${state_signal}' to ${zone_store_path}..."
@@ -191,6 +194,9 @@ steps:
       echo "$output"
     }
 
+    # Resolves the cluster version to use.
+    # 1. Tries to get the version from the main cluster intent CSV.
+    # 2. If not specified, falls back to fleet version config file based on fleet_project_id.
     function resolve_cluster_version() {
       local intent="$1"
       local project_id="$2"
