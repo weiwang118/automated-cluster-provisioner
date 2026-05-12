@@ -114,31 +114,6 @@ resource "google_monitoring_alert_policy" "watcher-absence-alert" {
 }
 
 
-resource "time_sleep" "cluster-creation-failure-csv-timer" {
-    depends_on = [ google_logging_metric.cluster-creation-failure-csv ]
-    create_duration = "30s"
-}
-
-resource "google_monitoring_alert_policy" "cluster-creation-failure-csv-alert" {
-  depends_on = [ time_sleep.cluster-creation-failure-csv-timer ]
-  display_name = "Cluster Creation Failed - Invalid Cluster Intent (Customer Action Required)"
-  notification_channels = [google_monitoring_notification_channel.cp_notification_channel.name]
-  combiner = "OR"
-  conditions {
-    display_name = "Invalid Cluster Intent Alert"
-    condition_prometheus_query_language {
-      query = <<EOL
-      count(rate(logging_googleapis_com:user_cluster_creation_failure_csv_${replace(var.environment, "-", "_")}{monitored_resource="build"}[1h])) by (cluster_name) > 0
-        EOL
-      
-      duration = "3600s"
-    }
-  }
-  documentation {
-    content = "The cluster provisioning failed because the cluster intent CSV contains invalid or missing parameters. Please review the source of truth repository and ensure all required columns are filled correctly."
-    mime_type = "text/markdown"
-  }
-}
 
 resource "time_sleep" "cluster-creation-failure-healthcheck-timer" {
     depends_on = [ google_logging_metric.cluster-creation-failure-healthcheck ]
@@ -166,31 +141,6 @@ resource "google_monitoring_alert_policy" "cluster-creation-failure-healthcheck-
   }
 }
 
-resource "time_sleep" "cluster-modify-failure-csv-timer" {
-    depends_on = [ google_logging_metric.cluster-modify-failure-csv ]
-    create_duration = "30s"
-}
-
-resource "google_monitoring_alert_policy" "cluster-modify-failure-csv-alert" {
-  depends_on = [ time_sleep.cluster-modify-failure-csv-timer ]
-  display_name = "Cluster Modify Failed - Invalid Intent (Customer Action Required)"
-  notification_channels = [google_monitoring_notification_channel.cp_notification_channel.name]
-  combiner = "OR"
-  conditions {
-    display_name = "CSV Intent Modify Failure Alert"
-    condition_prometheus_query_language {
-      query = <<EOL
-      count(rate(logging_googleapis_com:user_cluster_modify_failure_csv_${replace(var.environment, "-", "_")}{monitored_resource="build"}[1h])) by (cluster_name) > 0
-        EOL
-      
-      duration = "3600s"
-    }
-  }
-  documentation {
-    content = "The cluster modification failed because the cluster intent CSV contains invalid or missing parameters. Please review the source of truth repository and ensure all required columns are filled correctly."
-    mime_type = "text/markdown"
-  }
-}
 
 resource "time_sleep" "cluster-creation-failure-source-access-timer" {
     depends_on = [ google_logging_metric.cluster-creation-failure-source-access ]
@@ -266,6 +216,32 @@ resource "google_monitoring_alert_policy" "cluster-modify-failure-source-access-
   }
   documentation {
     content = "The cluster modification failed because the system could not access the source of truth repository or retrieve the required secrets. Please check the Git token in Secret Manager and the repository URL configuration."
+    mime_type = "text/markdown"
+  }
+}
+
+resource "time_sleep" "invalid-cluster-intent-timer" {
+    depends_on = [ google_logging_metric.invalid-cluster-intent ]
+    create_duration = "30s"
+}
+
+resource "google_monitoring_alert_policy" "invalid-cluster-intent-alert" {
+  depends_on = [ time_sleep.invalid-cluster-intent-timer ]
+  display_name = "Invalid Cluster Intent Alert (Unified)"
+  notification_channels = [google_monitoring_notification_channel.cp_notification_channel.name]
+  combiner = "OR"
+  conditions {
+    display_name = "Invalid Cluster Intent Detected"
+    condition_prometheus_query_language {
+      query = <<EOL
+      count(rate(logging_googleapis_com:user_invalid_cluster_intent_${replace(var.environment, "-", "_")}[1h])) by (cluster_name) > 0
+        EOL
+      
+      duration = "3600s"
+    }
+  }
+  documentation {
+    content = "Invalid cluster intent was detected in either the Zone Watcher or during the Create/Modify Cluster Cloud Build execution. Please check the logs for '[INVALID_CLUSTER_INTENT]' to find the specific error."
     mime_type = "text/markdown"
   }
 }

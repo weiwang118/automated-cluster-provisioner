@@ -613,7 +613,8 @@ def read_intent_data(params, named_key) -> Dict[Tuple, Dict[str, SourceOfTruthMo
                     logger.error(f"Store {edge_zone.store_id}: Invalid cluster version format: {version_to_check}")
                     continue
         except ValidationError as e:
-            logger.error(f"Invalid row detected in source of truth: {e.errors()}")
+            cluster_name = row.get('cluster_name', 'unknown')
+            logger.error(f"[INVALID_CLUSTER_INTENT][cluster:{cluster_name}] Invalid row detected in source of truth: {e.errors()}")
             continue
 
         config_zone_info[proj_loc_key][row['store_id']] = edge_zone

@@ -176,10 +176,10 @@ steps:
 
       output=$(echo "$input" | csvtool namedcol "$column" - | csvtool drop 1 - | tr -d '"')
 
-      [[ $? -ne 0 ]] && die "[CUSTOMER_ERROR] Missing required parameter: $column" >&2
+      [[ $? -ne 0 ]] && die "[INVALID_CLUSTER_INTENT][cluster:${CLUSTER_NAME:-unknown}] missing column header: $column" >&2
 
       if [ -z "$output" ]; then
-        die "[CUSTOMER_ERROR] Empty required parameter: $column" >&2
+        die "[INVALID_CLUSTER_INTENT][cluster:${CLUSTER_NAME:-unknown}] empty cell value: $column" >&2
       fi
 
       echo "$output"
@@ -290,10 +290,10 @@ steps:
     # Preemptively install required packages silently to maintain clean visual layouts
     apt-get update -qq && apt-get install -y -qq gettext-base csvtool jq > /dev/null
 
-    [[ -z "${STORE_ID}" ]] && die "[CUSTOMER_ERROR] STORE_ID not set. Please ensure store_id is provided in the trigger."
+    [[ -z "${STORE_ID}" ]] && die "[INVALID_CLUSTER_INTENT] STORE_ID not set. Please ensure store_id is provided in the trigger."
 
     NODE_LOCATION=${ZONE}
-    [[ -z "$NODE_LOCATION" ]] && die "[CUSTOMER_ERROR] ZONE not set. Please ensure zone is provided in the trigger."
+    [[ -z "$NODE_LOCATION" ]] && die "[INVALID_CLUSTER_INTENT] ZONE not set. Please ensure zone is provided in the trigger."
 
     TOKEN=$(gcloud secrets versions access latest --secret=$GIT_SECRET_ID --project $GIT_SECRETS_PROJECT_ID) || die "[CUSTOMER_ERROR] Failed to retrieve git token from Secret Manager. Please check secret name and permissions."
     git clone -b $SOURCE_OF_TRUTH_BRANCH https://oauth2:$TOKEN@$SOURCE_OF_TRUTH_REPO repo || die "[CUSTOMER_ERROR] Failed to clone source of truth repository. Please check repo URL and branch."
@@ -301,7 +301,7 @@ steps:
 
     export CLUSTER_INTENT_ROW=$(awk -F , "\$1 == \"$STORE_ID\" || \$1 == \"\\\"$STORE_ID\\\"\"" cluster-intent-registry.csv)
     echo ">>> [SoT Parse] $CLUSTER_INTENT_ROW"
-    [[ -z "$CLUSTER_INTENT_ROW" ]] && die "[CUSTOMER_ERROR] Cluster intent not found for store: $STORE_ID"
+    [[ -z "$CLUSTER_INTENT_ROW" ]] && die "[INVALID_CLUSTER_INTENT] Cluster intent not found for store: $STORE_ID"
     export CLUSTER_INTENT_HEADER=$(head -1 cluster-intent-registry.csv)
     export CLUSTER_INTENT="$CLUSTER_INTENT_HEADER"$'\n'"$CLUSTER_INTENT_ROW"
 

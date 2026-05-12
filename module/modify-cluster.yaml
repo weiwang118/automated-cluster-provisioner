@@ -37,10 +37,10 @@ steps:
 
       output=$(echo "$input" | csvtool namedcol "$column" - | csvtool drop 1 - | tr -d '"')
 
-      [[ $? -ne 0 ]] && die "[CUSTOMER_ERROR] Missing required parameter: $column"
+      [[ $? -ne 0 ]] && die "[INVALID_CLUSTER_INTENT][cluster:${CLUSTER_NAME:-unknown}] missing column header: $column"
 
       if [ -z "$output" ]; then
-        die "[CUSTOMER_ERROR] Empty required parameter: $column"
+        die "[INVALID_CLUSTER_INTENT][cluster:${CLUSTER_NAME:-unknown}] empty cell value: $column"
       fi
 
       echo "$output"
