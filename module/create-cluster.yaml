@@ -200,7 +200,6 @@ steps:
     function resolve_cluster_version() {
       local intent="$1"
       local project_id="$2"
-      local sot_path="$3"
       
       local version=$(parse_csv_optional "$intent" "cluster_version")
       
@@ -242,7 +241,7 @@ steps:
         exit 1
       fi
       
-      eval "export $var_name=\"$val\""
+      export "$var_name=$val"
     }
 
 
@@ -322,7 +321,7 @@ steps:
     assign_required SECRETS_PROJECT_ID "secrets_project_id"
     assign_required GIT_TOKEN_SECRETS_MANAGER_NAME "git_token_secrets_manager_name"
     
-    export CLUSTER_VERSION=$(resolve_cluster_version "$CLUSTER_INTENT" "$FLEET_PROJECT_ID" "$SOURCE_OF_TRUTH_PATH") || exit 1
+    export CLUSTER_VERSION=$(resolve_cluster_version "$CLUSTER_INTENT" "$FLEET_PROJECT_ID") || exit 1
     
     export MAINTENANCE_WINDOW_START=$(parse_csv_optional "$CLUSTER_INTENT" "maintenance_window_start")
     export MAINTENANCE_WINDOW_END=$(parse_csv_optional "$CLUSTER_INTENT" "maintenance_window_end")

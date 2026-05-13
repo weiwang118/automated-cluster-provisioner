@@ -556,14 +556,14 @@ def read_intent_data(params, named_key) -> Dict[Tuple, Dict[str, SourceOfTruthMo
     zone_config_fio = intent_reader.retrieve_source_of_truth()
     rdr = csv.DictReader(io.StringIO(zone_config_fio))  # will raise exception if csv parsing fails
     
-    # Read fleet config for fallback validation
+    # Read fleet config for fleet-level version verification
     fleet_reader = ClusterIntentReader(params.source_of_truth_repo, params.source_of_truth_branch, params.fleet_config_path, token)
     fleet_versions = {}
     try:
         fleet_config_fio = fleet_reader.retrieve_source_of_truth()
         fleet_rdr = csv.DictReader(io.StringIO(fleet_config_fio))
     except Exception as e:
-        logger.warning(f"Failed to read fleet config file at {params.fleet_config_path}: {e}. Fallback validation will be skipped.")
+        logger.warning(f"Failed to read fleet config file at {params.fleet_config_path}: {e}. Fleet-level version validation will be skipped.")
         fleet_rdr = []
 
     for f_row in fleet_rdr:
@@ -583,13 +583,8 @@ def read_intent_data(params, named_key) -> Dict[Tuple, Dict[str, SourceOfTruthMo
         if proj_loc_key not in config_zone_info.keys():
             config_zone_info[proj_loc_key] = {}
 
-        # Calculate hash of the row
-        row_str = json.dumps(row, sort_keys=True)
-        intent_hash = hashlib.sha256(row_str.encode()).hexdigest()
-
         try:
             edge_zone = SourceOfTruthModel.model_validate(row)
-            edge_zone.intent_hash = intent_hash
             
             if not edge_zone.cluster_version:
                 fleet_version = fleet_versions.get(edge_zone.fleet_project_id)
@@ -599,6 +594,10 @@ def read_intent_data(params, named_key) -> Dict[Tuple, Dict[str, SourceOfTruthMo
                 else:
                     logger.info(f"Store {edge_zone.store_id}: Using fleet default version {fleet_version} for project {edge_zone.fleet_project_id}")
                     edge_zone.cluster_version = fleet_version
+            
+            # Calculate hash of the resolved model
+            row_str = edge_zone.model_dump_json()
+            edge_zone.intent_hash = hashlib.sha256(row_str.encode()).hexdigest()
             
             # Validate Robin CNS support
             if edge_zone.enable_robin_cns:
