@@ -25,6 +25,7 @@ locals {
     { _SOURCE_OF_TRUTH_REPO = var.source_of_truth_repo },
     { _SOURCE_OF_TRUTH_BRANCH = var.source_of_truth_branch },
     { _SOURCE_OF_TRUTH_PATH = var.source_of_truth_path },
+    { _FLEET_CONFIG_PATH = var.fleet_config_path },
     { _GIT_SECRET_ID = var.git_secret_id },
     { _GIT_SECRETS_PROJECT_ID = local.project_id_secrets },
     { _TIMEOUT_IN_SECONDS = var.cluster_creation_timeout },
@@ -325,6 +326,7 @@ resource "google_cloudfunctions2_function" "zone-watcher" {
       SOURCE_OF_TRUTH_REPO                      = var.source_of_truth_repo
       SOURCE_OF_TRUTH_BRANCH                    = var.source_of_truth_branch
       SOURCE_OF_TRUTH_PATH                      = var.source_of_truth_path
+      FLEET_CONFIG_PATH                         = var.fleet_config_path
       PROJECT_ID_SECRETS                        = var.project_id_secrets
       GIT_SECRET_ID                             = var.git_secret_id
       MAX_RETRIES                               = var.cluster_creation_max_retries
@@ -399,6 +401,7 @@ resource "google_cloudfunctions2_function" "cluster-watcher" {
       SOURCE_OF_TRUTH_REPO                      = var.source_of_truth_repo
       SOURCE_OF_TRUTH_BRANCH                    = var.source_of_truth_branch
       SOURCE_OF_TRUTH_PATH                      = var.source_of_truth_path
+      FLEET_CONFIG_PATH                         = var.fleet_config_path
       PROJECT_ID_SECRETS                        = var.project_id_secrets
       GIT_SECRET_ID                             = var.git_secret_id
       MAX_WORKERS                               = "20"
@@ -470,6 +473,7 @@ resource "google_cloudfunctions2_function" "zone-active-metric" {
       SOURCE_OF_TRUTH_REPO                      = var.source_of_truth_repo
       SOURCE_OF_TRUTH_BRANCH                    = var.source_of_truth_branch
       SOURCE_OF_TRUTH_PATH                      = var.source_of_truth_path
+      FLEET_CONFIG_PATH                         = var.fleet_config_path
       PROJECT_ID_SECRETS                        = var.project_id_secrets
       GIT_SECRET_ID                             = var.git_secret_id
     }
