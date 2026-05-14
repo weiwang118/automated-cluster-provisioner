@@ -5,6 +5,7 @@ module "cluster_automation" {
   git_secret_id                = "example-pat-token"
   project_id_secrets           = "example-secrets-project"
   source_of_truth_path         = "example-source-of-truth.csv"
+  fleet_config_path            = "fleet-version-config.csv"
   region                       = "us-central1"
   environment                  = "prod"
   cluster_creation_timeout     = "86400"

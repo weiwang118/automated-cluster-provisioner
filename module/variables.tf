@@ -115,6 +115,11 @@ variable "source_of_truth_path" {
   default     = "source_of_truth.csv"
 }
 
+variable "fleet_config_path" {
+  description = "Path to fleet version configuration file"
+  default     = "fleet-version-config.csv"
+}
+
 variable "git_secret_id" {
   description = "Secrets manager secret holding git token to pull source of truth"
   default     = "shyguy-internal-pat"

@@ -11,6 +11,7 @@ module "cluster_automation" {
   connect_gateway_api_endpoint_override = "https://staging-connectgateway.sandbox.googleapis.com/"
   source_of_truth_path         = "wei-source-of-truth.csv"
   source_of_truth_branch       = "sandbox-test"
+  fleet_config_path            = "fleet-version-config.csv"
   region                       = "us-central1"
   environment                  = "acp-dev"
   cluster_creation_timeout     = "86400"

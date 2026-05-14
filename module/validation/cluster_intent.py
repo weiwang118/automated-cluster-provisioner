@@ -23,7 +23,7 @@ class SourceOfTruthModel(BaseModel):
     sync_dir: str
     secrets_project_id: ProjectIdString
     git_token_secrets_manager_name: str
-    cluster_version: str
+    cluster_version: Optional[str] = None
     maintenance_window_recurrence: Optional[str] = None
     maintenance_window_start: Optional[str] = None
     maintenance_window_end: Optional[str] = None

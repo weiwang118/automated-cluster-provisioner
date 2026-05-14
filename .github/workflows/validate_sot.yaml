@@ -25,3 +25,4 @@ jobs:
           popd
 
           validate_csv -v -m module/validation/cluster_intent.py example-source-of-truth.csv
+          validate_csv -v -m module/validation/fleet_config.py fleet-version-config.csv

@@ -148,7 +148,7 @@ The expected sequence to order a GDC Edge Zone with a provisioned cluster would 
 | sync_branch                               | yes      | The branch used for ConfigSync's RootSync object.                                                                                                                                                                             |
 | sync_dir                                  | yes      | The path within the repository used for ConfigSync's RootSync object.                                                                                                                                                         |
 | git_token_secrets_manager_name            | yes      | Secrets Manager secret for the git PAT token to deploy into the cluster for ConfigSync to pull github configuration                                                                                                           |
-| cluster_version                           | yes      | Initial cluster version to provision the cluster                                                                                                                                                                              |
+| cluster_version                           | no       | Initial cluster version to provision the cluster. If omitted, falls back to the version defined in fleet-version-config.csv for the corresponding project. |
 | maintenance_window_start                  | no       | (Optional.) Start time of the MW                                                                                                                                                                                              |
 | maintenance_window_end                    | no       | (Optional.) End time of the MW                                                                                                                                                                                                |
 | maintenance_window_recurrence             | no       | (Optional.) Frequency of the MW                                                                                                                                                                                               |
@@ -162,6 +162,28 @@ The expected sequence to order a GDC Edge Zone with a provisioned cluster would 
 ### Cluster Intent Validation
 
 We recommend that cluster intent is validated as part of the PR process for proper format and values. There are a number of validation tools available, and we provide an example validation github action that uses the [csv-validator](https://github.com/GDC-ConsumerEdge/csv-validator) tool. For more information, view the [validation model](./validation/cluster_intent.py) and the [validation github action](./.github/workflows/validate_sot.yaml)
+
+## Fleet Version Configuration
+
+In addition to the per-cluster intent, you can manage cluster versions at the fleet level using a separate CSV file. This is particularly useful for setting a baseline version for a project and handling fallbacks during Full Cluster Repair (FCR).
+
+### Fleet Version Config Data Format
+
+This file should be a CSV with the following columns:
+
+| Parameter | Required | Description |
+| :--- | :--- | :--- |
+| fleet_project_id | yes | The GCP project ID hosting the clusters. This is used as the lookup key. |
+| cluster_version | yes | The default cluster version to use for clusters in this project if not specified in the main intent CSV. |
+
+### Example File
+Create a file named `fleet-version-config.csv` (or custom name specified by `fleet_config_path`) in your source of truth repository:
+
+```csv
+"fleet_project_id","cluster_version"
+"my-fleet-project-1","1.12.0"
+"my-fleet-project-2","1.13.0"
+```
 
 ## Operations
 

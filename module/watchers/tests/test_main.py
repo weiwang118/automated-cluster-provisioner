@@ -104,3 +104,62 @@ class TestMain(unittest.TestCase):
             any_order=True,
         )
         self.assertEqual(mock_get_zones.call_count, 2)
+
+    @mock.patch('src.main.get_git_token_from_secrets_manager')
+    @mock.patch('src.main.ClusterIntentReader')
+    def test_read_intent_data_fallback(self, mock_reader_cls, mock_get_token):
+        """Test that cluster version falls back to fleet config if missing in main CSV."""
+        mock_get_token.return_value = "mock-token"
+        mock_reader_instance = mock.MagicMock()
+        mock_reader_cls.return_value = mock_reader_instance
+        
+        main_csv = """store_id,fleet_project_id,machine_project_id,location,cluster_name,node_count,cluster_ipv4_cidr,services_ipv4_cidr,external_load_balancer_ipv4_address_pools,sync_repo,sync_branch,sync_dir,secrets_project_id,git_token_secrets_manager_name,cluster_version
+store1,project1,machine1,us-central1,cluster1,3,10.0.0.0/16,10.1.0.0/16,1.1.1.1-1.1.1.10,repo1,main,.,sec-proj,git-sec,""
+"""
+        fleet_csv = """fleet_project_id,cluster_version
+project1,1.12.0
+"""
+        mock_reader_instance.retrieve_source_of_truth.side_effect = [main_csv, fleet_csv]
+        
+        params = mock.MagicMock()
+        params.source_of_truth_repo = "repo"
+        params.source_of_truth_branch = "main"
+        params.source_of_truth_path = "intent.csv"
+        params.fleet_config_path = "fleet.csv"
+        params.secrets_project_id = "sec-proj"
+        params.git_secret_id = "git-sec"
+        
+        result = main.read_intent_data(params, 'fleet_project_id')
+        
+        self.assertIn(('project1', 'us-central1'), result)
+        self.assertIn('store1', result[('project1', 'us-central1')])
+        edge_zone = result[('project1', 'us-central1')]['store1']
+        self.assertEqual(edge_zone.cluster_version, "1.12.0")
+
+    @mock.patch('src.main.get_git_token_from_secrets_manager')
+    @mock.patch('src.main.ClusterIntentReader')
+    def test_read_intent_data_robin_cns_invalid_version(self, mock_reader_cls, mock_get_token):
+        """Test that Robin CNS validation fails if version is below 1.12.0."""
+        mock_get_token.return_value = "mock-token"
+        mock_reader_instance = mock.MagicMock()
+        mock_reader_cls.return_value = mock_reader_instance
+        
+        main_csv = """store_id,fleet_project_id,machine_project_id,location,cluster_name,node_count,cluster_ipv4_cidr,services_ipv4_cidr,external_load_balancer_ipv4_address_pools,sync_repo,sync_branch,sync_dir,secrets_project_id,git_token_secrets_manager_name,cluster_version,enable_robin_cns
+store1,project1,machine1,us-central1,cluster1,3,10.0.0.0/16,10.1.0.0/16,1.1.1.1-1.1.1.10,repo1,main,.,sec-proj,git-sec,"",true
+"""
+        fleet_csv = """fleet_project_id,cluster_version
+project1,1.11.0
+"""
+        mock_reader_instance.retrieve_source_of_truth.side_effect = [main_csv, fleet_csv]
+        
+        params = mock.MagicMock()
+        params.source_of_truth_repo = "repo"
+        params.source_of_truth_branch = "main"
+        params.source_of_truth_path = "intent.csv"
+        params.fleet_config_path = "fleet.csv"
+        params.secrets_project_id = "sec-proj"
+        params.git_secret_id = "git-sec"
+        
+        result = main.read_intent_data(params, 'fleet_project_id')
+        
+        self.assertEqual(result.get(('project1', 'us-central1')), {})

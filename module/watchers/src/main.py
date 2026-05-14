@@ -44,6 +44,7 @@ from .acp_zone import ACPZone, get_zones
 from .acp_membership import get_memberships
 from .clients import GoogleClients
 from .cluster_intent_model import SourceOfTruthModel
+from .fleet_config_model import FleetConfigModel
 from .watcher_settings import WatcherSettings
 import concurrent.futures
 import threading
@@ -555,19 +556,62 @@ def read_intent_data(params, named_key) -> Dict[Tuple, Dict[str, SourceOfTruthMo
     zone_config_fio = intent_reader.retrieve_source_of_truth()
     rdr = csv.DictReader(io.StringIO(zone_config_fio))  # will raise exception if csv parsing fails
     
+    # Read fleet config for fleet-level version verification
+    fleet_reader = ClusterIntentReader(params.source_of_truth_repo, params.source_of_truth_branch, params.fleet_config_path, token)
+    fleet_versions = {}
+    try:
+        fleet_config_fio = fleet_reader.retrieve_source_of_truth()
+        fleet_rdr = csv.DictReader(io.StringIO(fleet_config_fio))
+    except Exception as e:
+        logger.warning(f"Failed to read fleet config file at {params.fleet_config_path}: {e}. Fleet-level version validation will be skipped.")
+        fleet_rdr = []
+
+    for f_row in fleet_rdr:
+        try:
+            f_config = FleetConfigModel.model_validate(f_row)
+            fleet_versions[f_config.fleet_project_id] = f_config.cluster_version
+        except ValidationError as e:
+            logger.error(f"Invalid row detected in fleet config: {e.errors()}")
+            continue
+            
+    if fleet_versions:
+        logger.info(f"Successfully loaded fleet versions for {len(fleet_versions)} projects.")
+
     for row in rdr:
         proj_loc_key = (row[named_key], row['location'])
 
         if proj_loc_key not in config_zone_info.keys():
             config_zone_info[proj_loc_key] = {}
 
-        # Calculate hash of the row
-        row_str = json.dumps(row, sort_keys=True)
-        intent_hash = hashlib.sha256(row_str.encode()).hexdigest()
-
         try:
             edge_zone = SourceOfTruthModel.model_validate(row)
-            edge_zone.intent_hash = intent_hash
+            
+            if not edge_zone.cluster_version:
+                fleet_version = fleet_versions.get(edge_zone.fleet_project_id)
+                if not fleet_version:
+                    logger.error(f"Store {edge_zone.store_id}: Cluster version missing in cluster intent and no fleet default found for project {edge_zone.fleet_project_id}")
+                    continue
+                else:
+                    logger.info(f"Store {edge_zone.store_id}: Using fleet default version {fleet_version} for project {edge_zone.fleet_project_id}")
+                    edge_zone.cluster_version = fleet_version
+            
+            # Calculate hash of the resolved model
+            row_str = edge_zone.model_dump_json()
+            edge_zone.intent_hash = hashlib.sha256(row_str.encode()).hexdigest()
+            
+            # Validate Robin CNS support
+            if edge_zone.enable_robin_cns:
+                version_to_check = edge_zone.cluster_version
+                try:
+                    version_parts = version_to_check.split('-')[0].split('.')
+                    major = int(version_parts[0])
+                    minor = int(version_parts[1])
+                    if major < 1 or (major == 1 and minor < 12):
+                        logger.error(f"Store {edge_zone.store_id}: Robin CNS is only supported for GDC versions 1.12.0 or higher. Got {version_to_check}")
+                        continue
+                except (IndexError, ValueError):
+                    logger.error(f"Store {edge_zone.store_id}: Invalid cluster version format: {version_to_check}")
+                    continue
         except ValidationError as e:
             logger.error(f"Invalid row detected in source of truth: {e.errors()}")
             continue
