@@ -156,7 +156,7 @@ resource "google_monitoring_alert_policy" "cluster-creation-failure-source-acces
     display_name = "Source Access Failure Alert"
     condition_prometheus_query_language {
       query = <<EOL
-      count(rate(logging_googleapis_com:user_cluster_creation_failure_source_access_${replace(var.environment, "-", "_")}{monitored_resource="build"}[1h])) by (cluster_name) > 0
+      count(rate(logging_googleapis_com:user_cluster_creation_failure_source_access_${replace(var.environment, "-", "_")}{monitored_resource="build"}[1h])) by (store_id) > 0
         EOL
       
       duration = "3600s"
@@ -183,13 +183,17 @@ resource "google_monitoring_alert_policy" "cluster-creation-failure-robin-alert"
     condition_prometheus_query_language {
       query = <<EOL
       count(rate(logging_googleapis_com:user_cluster_creation_failure_robin_${replace(var.environment, "-", "_")}{monitored_resource="build"}[1h])) by (cluster_name) > 0
+      or
+      count(rate(logging_googleapis_com:user_cluster_creation_failure_robin_${replace(var.environment, "-", "_")}{monitored_resource="cloud_function"}[1h])) by (cluster_name) > 0
+      or
+      count(rate(logging_googleapis_com:user_cluster_creation_failure_robin_${replace(var.environment, "-", "_")}{monitored_resource="cloud_run_revision"}[1h])) by (cluster_name) > 0
         EOL
       
       duration = "3600s"
     }
   }
   documentation {
-    content = "The cluster provisioning failed because Robin CNS was requested on an unsupported version. Robin CNS requires version 1.12.0 or higher. Please check the cluster intent configuration."
+    content = "The cluster provisioning failed because Robin CNS was requested on an unsupported version. Robin CNS requires version 1.12.0 or higher. Please check your version configuration in cluster intent csv and/or fleet version config csv."
     mime_type = "text/markdown"
   }
 }
@@ -208,7 +212,7 @@ resource "google_monitoring_alert_policy" "cluster-modify-failure-source-access-
     display_name = "Source Access Failure Alert"
     condition_prometheus_query_language {
       query = <<EOL
-      count(rate(logging_googleapis_com:user_cluster_modify_failure_source_access_${replace(var.environment, "-", "_")}{monitored_resource="build"}[1h])) by (cluster_name) > 0
+      count(rate(logging_googleapis_com:user_cluster_modify_failure_source_access_${replace(var.environment, "-", "_")}{monitored_resource="build"}[1h])) by (store_id) > 0
         EOL
 
       duration = "3600s"
@@ -220,28 +224,32 @@ resource "google_monitoring_alert_policy" "cluster-modify-failure-source-access-
   }
 }
 
-resource "time_sleep" "invalid-cluster-intent-timer" {
-    depends_on = [ google_logging_metric.invalid-cluster-intent ]
+resource "time_sleep" "config-validation-failed-timer" {
+    depends_on = [ google_logging_metric.config-validation-failed ]
     create_duration = "30s"
 }
 
-resource "google_monitoring_alert_policy" "invalid-cluster-intent-alert" {
-  depends_on = [ time_sleep.invalid-cluster-intent-timer ]
-  display_name = "Invalid Cluster Intent Alert (Unified)"
+resource "google_monitoring_alert_policy" "config-validation-failed-alert" {
+  depends_on = [ time_sleep.config-validation-failed-timer ]
+  display_name = "Configuration Validation Failed Alert (Unified)"
   notification_channels = [google_monitoring_notification_channel.cp_notification_channel.name]
   combiner = "OR"
   conditions {
-    display_name = "Invalid Cluster Intent Detected"
+    display_name = "Configuration Validation Failed Detected"
     condition_prometheus_query_language {
       query = <<EOL
-      count(rate(logging_googleapis_com:user_invalid_cluster_intent_${replace(var.environment, "-", "_")}[1h])) by (cluster_name) > 0
+      count(rate(logging_googleapis_com:user_config_validation_failed_${replace(var.environment, "-", "_")}{monitored_resource="build"}[1h])) by (cluster_name) > 0
+      or
+      count(rate(logging_googleapis_com:user_config_validation_failed_${replace(var.environment, "-", "_")}{monitored_resource="cloud_function"}[1h])) by (cluster_name) > 0
+      or
+      count(rate(logging_googleapis_com:user_config_validation_failed_${replace(var.environment, "-", "_")}{monitored_resource="cloud_run_revision"}[1h])) by (cluster_name) > 0
         EOL
       
       duration = "3600s"
     }
   }
   documentation {
-    content = "Invalid cluster intent was detected in either the Zone Watcher or during the Create/Modify Cluster Cloud Build execution. Please check the logs for '[INVALID_CLUSTER_INTENT]' to find the specific error."
+    content = "Configuration validation failed in either the Zone Watcher or during the Create/Modify Cluster Cloud Build execution. Please check the logs for '[CONFIG_VALIDATION_FAILED]' to find the specific error."
     mime_type = "text/markdown"
   }
 }
