@@ -201,9 +201,9 @@ This table describes the metrics available to monitor cluster provisioning.
 | cluster-modify-failure-${environment}                 | Count | cluster_name | Cluster Modify Failure Count                                                    |
 | config-validation-failed-${environment}               | Count | cluster_name | Configuration validation failed in Zone Watcher or Cloud Build                  |
 | cluster-creation-failure-healthcheck-${environment}   | Count | cluster_name | Cluster Creation Failure Count due to workload health check timeouts            |
-| cluster-creation-failure-source-access-${environment}  | Count | cluster_name | Cluster Creation Failure Count due to Git or Secret access issues               |
+| cluster-creation-failure-source-access-${environment}  | Count | store_id | Cluster Creation Failure Count due to Git or Secret access issues               |
 | cluster-creation-failure-robin-${environment}         | Count | cluster_name | Cluster Creation Failure Count due to invalid Robin CNS configuration           |
-| cluster-modify-failure-source-access-${environment}   | Count | cluster_name | Cluster Modify Failure Count due to Git or Secret access issues                 |
+| cluster-modify-failure-source-access-${environment}   | Count | store_id | Cluster Modify Failure Count due to Git or Secret access issues                 |
 
 ### Alerts
 
