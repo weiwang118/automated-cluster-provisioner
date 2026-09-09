@@ -16,6 +16,7 @@ import unittest
 from unittest import mock
 from google.auth import credentials as google_credentials
 from google.cloud.gdchardwaremanagement_v1alpha import Zone
+from google.cloud import edgecontainer
 from src.acp_zone import ACPZone
 
 auth_patch = mock.patch('google.auth.default')
@@ -54,12 +55,14 @@ class TestMain(unittest.TestCase):
 
     @mock.patch('src.main.get_memberships')
     @mock.patch('src.main.get_zones')
+    @mock.patch('src.main.BuildHistory')
     @mock.patch('src.main.clients.get_edgecontainer_client')
     @mock.patch('src.main.clients.get_cloudbuild_client')
     def test_cluster_watcher_worker_multi_project(
         self,
         mock_get_cloudbuild_client,
         mock_get_edgecontainer_client,
+        mock_build_history,
         mock_get_zones,
         mock_get_memberships,
     ):
@@ -288,10 +291,11 @@ project1,1.11.0
     @mock.patch('src.main.report_api_connectivity_metric')
     @mock.patch('src.main.get_memberships')
     @mock.patch('src.main.get_zones')
+    @mock.patch('src.main.BuildHistory')
     @mock.patch('src.main.clients.get_edgecontainer_client')
     @mock.patch('src.main.clients.get_cloudbuild_client')
     def test_cluster_watcher_worker_reports_metrics_success(
-        self, mock_get_cb, mock_get_ec, mock_get_zones, mock_get_memberships, mock_report
+        self, mock_get_cb, mock_get_ec, mock_build_history, mock_get_zones, mock_get_memberships, mock_report
     ):
         mock_get_memberships.return_value = {}
         mock_get_zones.return_value = {}
@@ -361,3 +365,167 @@ project1,1.11.0
             status=0,
             failure_reason="unreachable"
         )
+
+    def _cluster_watcher_mocks(self, mock_get_ec, status, cluster_name="cluster1"):
+        mock_ec_client = mock.MagicMock()
+        mock_get_ec.return_value = mock_ec_client
+        mock_cluster = mock.MagicMock()
+        mock_cluster.name = cluster_name
+        mock_cluster.control_plane.local.node_location = "zone1"
+        mock_cluster.status = status
+        mock_ec_client.list_clusters.return_value = [mock_cluster]
+        mock_ec_client.common_location_path.return_value = "path"
+        return mock_ec_client
+
+    @staticmethod
+    def _cluster_watcher_store():
+        class MockStore:
+            fleet_project_id = "fleet-proj-1"
+            machine_project_id = "mach-proj-1"
+            location = "us-central1"
+            zone_name = "zone1"
+            cluster_name = "cluster1"
+            sync_branch = "main"
+            subnet_vlans = ""
+            labels = None
+            # Differs from the cluster mock below, so has_update is True and the only
+            # thing that can stop a trigger is one of the two gates under test.
+            maintenance_window_recurrence = "FREQ=WEEKLY;BYDAY=SU"
+            maintenance_window_start = "2026-01-03T09:00:00Z"
+            maintenance_window_end = "2026-01-03T17:00:00Z"
+        return {"store1": MockStore()}
+
+    @staticmethod
+    def _cluster_watcher_params():
+        params = mock.MagicMock()
+        params.project_id = "test-host-project"
+        params.region = "us-central1"
+        params.max_retries = 0
+        params.cloud_build_trigger_name = "modify-trigger"
+        params.create_cloud_build_trigger_name = "create-trigger"
+        params.cloud_build_trigger = "projects/test-host-project/locations/us-central1/triggers/modify-trigger"
+        return params
+
+    @mock.patch('src.main.report_api_connectivity_metric')
+    @mock.patch('src.main.get_memberships')
+    @mock.patch('src.main.get_zones')
+    @mock.patch('src.main.BuildHistory')
+    @mock.patch('src.main.clients.get_edgecontainer_client')
+    @mock.patch('src.main.clients.get_cloudbuild_client')
+    def test_cluster_watcher_worker_skips_when_build_in_progress(
+        self, mock_get_cb, mock_get_ec, mock_build_history, mock_get_zones,
+        mock_get_memberships, mock_report
+    ):
+        """The in-flight-build gate. Cluster is RUNNING so the status gate is open and
+        this gate is the only thing that can skip the store."""
+        mock_get_memberships.return_value = {}
+        mock_get_zones.return_value = {}
+        mock_cb_client = mock.MagicMock()
+        mock_get_cb.return_value = mock_cb_client
+
+        mock_build_history.return_value.has_active_build.return_value = True
+        self._cluster_watcher_mocks(mock_get_ec, edgecontainer.Cluster.Status.RUNNING)
+
+        params = self._cluster_watcher_params()
+        triggered_count = main._cluster_watcher_worker(
+            "fleet-proj-1", "us-central1", self._cluster_watcher_store(), params
+        )
+
+        self.assertEqual(triggered_count, 0)
+        mock_cb_client.run_build_trigger.assert_not_called()
+        mock_build_history.return_value.has_active_build.assert_called_with("store1")
+        # Both triggers must be in scope, or an in-flight create-cluster is invisible.
+        args = mock_build_history.call_args[0]
+        self.assertIn("modify-trigger", args[3])
+        self.assertIn("create-trigger", args[3])
+
+    @mock.patch('src.main.report_api_connectivity_metric')
+    @mock.patch('src.main.get_memberships')
+    @mock.patch('src.main.get_zones')
+    @mock.patch('src.main.BuildHistory')
+    @mock.patch('src.main.clients.get_edgecontainer_client')
+    @mock.patch('src.main.clients.get_cloudbuild_client')
+    def test_cluster_watcher_worker_triggers_when_no_active_build(
+        self, mock_get_cb, mock_get_ec, mock_build_history, mock_get_zones,
+        mock_get_memberships, mock_report
+    ):
+        """Positive control. Without it, an assertion that no build was triggered passes
+        even when a gate is removed, because some other guard skips the store anyway."""
+        mock_get_memberships.return_value = {}
+        mock_get_zones.return_value = {}
+        mock_cb_client = mock.MagicMock()
+        mock_get_cb.return_value = mock_cb_client
+
+        mock_build_history.return_value.has_active_build.return_value = False
+        self._cluster_watcher_mocks(mock_get_ec, edgecontainer.Cluster.Status.RUNNING)
+
+        triggered_count = main._cluster_watcher_worker(
+            "fleet-proj-1", "us-central1", self._cluster_watcher_store(),
+            self._cluster_watcher_params()
+        )
+
+        self.assertEqual(triggered_count, 1)
+        mock_cb_client.run_build_trigger.assert_called_once()
+
+    @mock.patch('src.main.report_api_connectivity_metric')
+    @mock.patch('src.main.get_memberships')
+    @mock.patch('src.main.get_zones')
+    @mock.patch('src.main.BuildHistory')
+    @mock.patch('src.main.clients.get_edgecontainer_client')
+    @mock.patch('src.main.clients.get_cloudbuild_client')
+    def test_cluster_watcher_worker_skips_when_cluster_not_settled(
+        self, mock_get_cb, mock_get_ec, mock_build_history, mock_get_zones,
+        mock_get_memberships, mock_report
+    ):
+        """The cluster-status gate, exercised with no build in flight so it is the only
+        guard that can skip the store."""
+        for status in (
+            edgecontainer.Cluster.Status.PROVISIONING,
+            edgecontainer.Cluster.Status.RECONCILING,
+            edgecontainer.Cluster.Status.DELETING,
+            edgecontainer.Cluster.Status.ERROR,
+            edgecontainer.Cluster.Status.STATUS_UNSPECIFIED,
+        ):
+            with self.subTest(status=status.name):
+                mock_get_memberships.return_value = {}
+                mock_get_zones.return_value = {}
+                mock_cb_client = mock.MagicMock()
+                mock_get_cb.return_value = mock_cb_client
+
+                mock_build_history.return_value.has_active_build.return_value = False
+                self._cluster_watcher_mocks(mock_get_ec, status)
+
+                triggered_count = main._cluster_watcher_worker(
+                    "fleet-proj-1", "us-central1", self._cluster_watcher_store(),
+                    self._cluster_watcher_params()
+                )
+
+                self.assertEqual(triggered_count, 0)
+                mock_cb_client.run_build_trigger.assert_not_called()
+
+    @mock.patch('src.main.report_api_connectivity_metric')
+    @mock.patch('src.main.get_memberships')
+    @mock.patch('src.main.get_zones')
+    @mock.patch('src.main.BuildHistory')
+    @mock.patch('src.main.clients.get_edgecontainer_client')
+    @mock.patch('src.main.clients.get_cloudbuild_client')
+    def test_cluster_watcher_worker_fails_closed_on_build_history_error(
+        self, mock_get_cb, mock_get_ec, mock_build_history, mock_get_zones,
+        mock_get_memberships, mock_report
+    ):
+        """If build history is unavailable we must not assume "nothing in flight"."""
+        mock_get_memberships.return_value = {}
+        mock_get_zones.return_value = {}
+        mock_cb_client = mock.MagicMock()
+        mock_get_cb.return_value = mock_cb_client
+
+        mock_build_history.side_effect = Exception("cloudbuild unavailable")
+        self._cluster_watcher_mocks(mock_get_ec, edgecontainer.Cluster.Status.RUNNING)
+
+        triggered_count = main._cluster_watcher_worker(
+            "fleet-proj-1", "us-central1", self._cluster_watcher_store(),
+            self._cluster_watcher_params()
+        )
+
+        self.assertEqual(triggered_count, 0)
+        mock_cb_client.run_build_trigger.assert_not_called()

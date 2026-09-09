@@ -513,27 +513,33 @@ steps:
 
     log_build_step "Beginning provisioning"
   
-    set -x
-
     # A previous build can die while the server-side create operation keeps running,
     # leaving the cluster in PROVISIONING. Wait out any in-flight operation before
     # deciding whether to create.
+    CLUSTER_WAIT_TIMEOUT_SECONDS=7200
+    CLUSTER_WAIT_POLL_SECONDS=30
     CLUSTER_STATUS=""
-    for _ in $(seq 1 $(( ${TIMEOUT_IN_SECONDS:-28800} / 4 / 30 ))); do
+    for _ in $(seq 1 $(( CLUSTER_WAIT_TIMEOUT_SECONDS / CLUSTER_WAIT_POLL_SECONDS ))); do
       CLUSTER_STATUS=$(gcloud edge-cloud container clusters describe "$CLUSTER_NAME" \
           --location "$LOCATION" --project "$FLEET_PROJECT_ID" \
           --format="value(status)" --verbosity none)
       [[ "$CLUSTER_STATUS" == "PROVISIONING" || "$CLUSTER_STATUS" == "RECONCILING" ]] || break
-      echo ">>> [Cluster State] ${CLUSTER_NAME} is ${CLUSTER_STATUS}, waiting..."
-      sleep 30
+      sleep "$CLUSTER_WAIT_POLL_SECONDS"
     done
+
+    set -x
 
     if [ "$CLUSTER_STATUS" = "RUNNING" ]; then
       log_build_step "Cluster already exists and is RUNNING, skipping to next step."
+    elif [[ "$CLUSTER_STATUS" == "PROVISIONING" || "$CLUSTER_STATUS" == "RECONCILING" ]]; then
+      # Exhausted the wait. Error code 4 is the timeout bucket, consistent with the
+      # platform and workload healthcheck timeouts.
+      die "Cluster ${CLUSTER_NAME} is still ${CLUSTER_STATUS} after ${CLUSTER_WAIT_TIMEOUT_SECONDS}s" \
+          "A server-side operation from an earlier build is still in flight. Not safe to run create or update commands." 4
     elif [ -n "$CLUSTER_STATUS" ]; then
-      # DELETING / ERROR / STATUS_UNSPECIFIED, or still PROVISIONING after the wait.
+      # DELETING / ERROR / STATUS_UNSPECIFIED, fallback to the generic failure code.
       die "Cluster ${CLUSTER_NAME} is ${CLUSTER_STATUS}, not safe to continue" \
-          "Expected the cluster to be RUNNING or absent before provisioning steps run." 3
+          "Expected the cluster to be RUNNING or absent before provisioning steps run." 2
     else
       # Create a new FD to support stdout,stderr to console + saving to bash variable
       # This is used to output the opid before the operation has completed

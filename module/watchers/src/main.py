@@ -360,6 +360,19 @@ def _cluster_watcher_worker(
     if edgecontainer_status == 0:
         return 0
 
+    # Reuse the zone watcher's build history so both watchers share one implementation.
+    # Scoping to our own triggers matters: an unrelated build in the project that
+    # happens to carry a _STORE_ID substitution should not block reconciliation.
+    trigger_names = [params.cloud_build_trigger_name]
+    if params.create_cloud_build_trigger_name:
+        trigger_names.append(params.create_cloud_build_trigger_name)
+    try:
+        builds = BuildHistory(params.project_id, params.region, params.max_retries,
+                              trigger_names, client=cb_client)
+    except Exception as err:
+        logger.warning(f"Error checking active builds, skipping this pass: {err}")
+        return 0
+
     for store_id in stores:
         store_info = stores[store_id]
 
@@ -383,6 +396,15 @@ def _cluster_watcher_worker(
         logger.debug(zone_cluster_list)
 
         cluster = zone_cluster_list[0]
+
+        # Only reconcile if there are no active builds in-flight for this store.
+        # This prevents triggering a modify build while create-cluster or another modify
+        # build is still running.
+        if builds.has_active_build(store_id):
+            logger.info(
+                f'Store {store_id} has an active Cloud Build in progress, skipping update check'
+            )
+            continue
 
         # Only reconcile settled clusters. Triggering a modify build against a cluster
         # that is PROVISIONING, RECONCILING or DELETING produces update calls the API
