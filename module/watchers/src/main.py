@@ -383,6 +383,17 @@ def _cluster_watcher_worker(
         logger.debug(zone_cluster_list)
 
         cluster = zone_cluster_list[0]
+
+        # Only reconcile settled clusters. Triggering a modify build against a cluster
+        # that is PROVISIONING, RECONCILING or DELETING produces update calls the API
+        # rejects, and burns a build for nothing.
+        if cluster.status != edgecontainer.Cluster.Status.RUNNING:
+            logger.info(
+                f'Cluster {cluster.name} in zone {zone} is '
+                f'{edgecontainer.Cluster.Status(cluster.status).name}, skipping update check'
+            )
+            continue
+
         rw = cluster.maintenance_policy.window.recurring_window
         has_update = False
 

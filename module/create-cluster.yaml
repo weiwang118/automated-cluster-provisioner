@@ -515,11 +515,25 @@ steps:
   
     set -x
 
-    gcloud edge-cloud container clusters describe $CLUSTER_NAME --location $LOCATION \
-        --project $FLEET_PROJECT_ID --verbosity none
+    # A previous build can die while the server-side create operation keeps running,
+    # leaving the cluster in PROVISIONING. Wait out any in-flight operation before
+    # deciding whether to create.
+    CLUSTER_STATUS=""
+    for _ in $(seq 1 $(( ${TIMEOUT_IN_SECONDS:-28800} / 4 / 30 ))); do
+      CLUSTER_STATUS=$(gcloud edge-cloud container clusters describe "$CLUSTER_NAME" \
+          --location "$LOCATION" --project "$FLEET_PROJECT_ID" \
+          --format="value(status)" --verbosity none)
+      [[ "$CLUSTER_STATUS" == "PROVISIONING" || "$CLUSTER_STATUS" == "RECONCILING" ]] || break
+      echo ">>> [Cluster State] ${CLUSTER_NAME} is ${CLUSTER_STATUS}, waiting..."
+      sleep 30
+    done
 
-    if [ $? -eq 0 ]; then
-      log_build_step "Cluster already created, skipping to next step."
+    if [ "$CLUSTER_STATUS" = "RUNNING" ]; then
+      log_build_step "Cluster already exists and is RUNNING, skipping to next step."
+    elif [ -n "$CLUSTER_STATUS" ]; then
+      # DELETING / ERROR / STATUS_UNSPECIFIED, or still PROVISIONING after the wait.
+      die "Cluster ${CLUSTER_NAME} is ${CLUSTER_STATUS}, not safe to continue" \
+          "Expected the cluster to be RUNNING or absent before provisioning steps run." 3
     else
       # Create a new FD to support stdout,stderr to console + saving to bash variable
       # This is used to output the opid before the operation has completed
