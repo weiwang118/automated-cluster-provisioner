@@ -361,3 +361,55 @@ project1,1.11.0
             status=0,
             failure_reason="unreachable"
         )
+
+    @mock.patch('src.main.report_api_connectivity_metric')
+    @mock.patch('src.main.get_memberships')
+    @mock.patch('src.main.get_zones')
+    @mock.patch('src.main.clients.get_edgecontainer_client')
+    @mock.patch('src.main.clients.get_cloudbuild_client')
+    def test_cluster_watcher_worker_skips_when_build_in_progress(
+        self, mock_get_cb, mock_get_ec, mock_get_zones, mock_get_memberships, mock_report
+    ):
+        mock_get_memberships.return_value = {}
+        mock_get_zones.return_value = {}
+
+        mock_cb_client = mock.MagicMock()
+        mock_get_cb.return_value = mock_cb_client
+
+        # Mock an active build for store1
+        mock_active_build = mock.MagicMock()
+        mock_active_build.substitutions = {"_STORE_ID": "store1", "_ZONE": "zone1"}
+        mock_cb_client.list_builds.return_value = [mock_active_build]
+
+        mock_ec_client = mock.MagicMock()
+        mock_get_ec.return_value = mock_ec_client
+
+        mock_cluster = mock.MagicMock()
+        mock_cluster.control_plane.local.node_location = "zone1"
+        mock_cluster.status = 1  # RUNNING
+        mock_ec_client.list_clusters.return_value = [mock_cluster]
+        mock_ec_client.common_location_path.return_value = "path"
+
+        class MockStore:
+            fleet_project_id = "fleet-proj-1"
+            machine_project_id = "mach-proj-1"
+            location = "us-central1"
+            zone_name = "zone1"
+
+        stores = {"store1": MockStore()}
+        params = mock.MagicMock()
+        params.project_id = "test-host-project"
+        params.region = "us-central1"
+
+        triggered_count = main._cluster_watcher_worker("fleet-proj-1", "us-central1", stores, params)
+
+        # Should skip store1 and not trigger any build
+        self.assertEqual(triggered_count, 0)
+        mock_cb_client.run_build_trigger.assert_not_called()
+
+        # Verify ListBuilds request parameters
+        mock_cb_client.list_builds.assert_called_once()
+        req = mock_cb_client.list_builds.call_args[1]["request"]
+        self.assertEqual(req.project_id, "test-host-project")
+        self.assertEqual(req.parent, "projects/test-host-project/locations/us-central1")
+        self.assertEqual(req.filter, 'status="WORKING" OR status="QUEUED" OR status="PENDING"')

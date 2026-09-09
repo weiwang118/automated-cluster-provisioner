@@ -360,6 +360,26 @@ def _cluster_watcher_worker(
     if edgecontainer_status == 0:
         return 0
 
+    active_builds_stores: Set[str] = set()
+    try:
+        in_flight_statuses = (
+            cloudbuild.Build.Status.WORKING,
+            cloudbuild.Build.Status.QUEUED,
+            cloudbuild.Build.Status.PENDING,
+        )
+        req_b = cloudbuild.ListBuildsRequest(
+            project_id=params.project_id,
+            parent=f"projects/{params.project_id}/locations/{params.region}",
+            filter=" OR ".join(f'status="{s.name}"' for s in in_flight_statuses),
+        )
+        for b in cb_client.list_builds(request=req_b):
+            substitutions = getattr(b, "substitutions", {}) or {}
+            store = substitutions.get("_STORE_ID")
+            if store:
+                active_builds_stores.add(store)
+    except Exception as err:
+        logger.warning(f"Error checking active builds: {err}")
+
     for store_id in stores:
         store_info = stores[store_id]
 
@@ -383,6 +403,15 @@ def _cluster_watcher_worker(
         logger.debug(zone_cluster_list)
 
         cluster = zone_cluster_list[0]
+
+        # Only reconcile if there are no active builds in-flight for this store.
+        # This prevents triggering a modify build while create-cluster or another modify
+        # build is still running.
+        if store_id in active_builds_stores:
+            logger.info(
+                f'Store {store_id} has an active Cloud Build in progress, skipping update check'
+            )
+            continue
 
         # Only reconcile settled clusters. Triggering a modify build against a cluster
         # that is PROVISIONING, RECONCILING or DELETING produces update calls the API
