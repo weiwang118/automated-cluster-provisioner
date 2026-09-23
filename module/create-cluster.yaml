@@ -519,11 +519,14 @@ steps:
     CLUSTER_WAIT_TIMEOUT_SECONDS=7200
     CLUSTER_WAIT_POLL_SECONDS=30
     CLUSTER_STATUS=""
-    for _ in $(seq 1 $(( CLUSTER_WAIT_TIMEOUT_SECONDS / CLUSTER_WAIT_POLL_SECONDS ))); do
+
+    CLUSTER_WAIT_DEADLINE=$(( SECONDS + CLUSTER_WAIT_TIMEOUT_SECONDS ))
+    while (( SECONDS < CLUSTER_WAIT_DEADLINE )); do
       CLUSTER_STATUS=$(gcloud edge-cloud container clusters describe "$CLUSTER_NAME" \
           --location "$LOCATION" --project "$FLEET_PROJECT_ID" \
           --format="value(status)" --verbosity none)
       [[ "$CLUSTER_STATUS" == "PROVISIONING" || "$CLUSTER_STATUS" == "RECONCILING" ]] || break
+      echo ">>> [Cluster State] ${CLUSTER_NAME} is ${CLUSTER_STATUS}, $(( CLUSTER_WAIT_DEADLINE - SECONDS ))s remaining..."
       sleep "$CLUSTER_WAIT_POLL_SECONDS"
     done
 

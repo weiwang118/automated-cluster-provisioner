@@ -124,8 +124,9 @@ steps:
     CLUSTER_STATUS=$(gcloud edge-cloud container clusters describe "$CLUSTER_NAME" \
         --location "$LOCATION" --project "$FLEET_PROJECT_ID" \
         --format="value(status)" --verbosity none)
+
     if [ "$CLUSTER_STATUS" != "RUNNING" ]; then
-      echo "Cluster ${CLUSTER_NAME} is '${CLUSTER_STATUS:-NOT_FOUND}', not RUNNING. Skipping this pass; the watcher will re-trigger."
+      log "Cluster ${CLUSTER_NAME} is '${CLUSTER_STATUS:-ABSENT_OR_UNREACHABLE}', not RUNNING. Skipping this pass; the watcher will re-trigger."
       exit 0
     fi
 

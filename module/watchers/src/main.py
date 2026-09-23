@@ -239,7 +239,9 @@ def zone_watcher(req: flask.Request):
     config_zone_info = read_intent_data(params, 'machine_project_id')
     
     ec_client = clients.get_edgecontainer_client()
-    builds = BuildHistory(params.project_id, params.region, params.max_retries, params.cloud_build_trigger_name)
+    builds = BuildHistory(params.project_id, params.region, params.max_retries,
+                          params.cloud_build_trigger_name,
+                          client=clients.get_cloudbuild_client())
 
     machine_lists: Dict[str, list[edgecontainer.Machine]] = {}
     unprocessed_zones: Dict[str, Tuple] = {}
@@ -308,6 +310,7 @@ def _cluster_watcher_worker(
     location: str,
     stores: Dict[str, SourceOfTruthModel],
     params: WatcherSettings,
+    builds: BuildHistory,
 ) -> int:
     ec_client = clients.get_edgecontainer_client()
     en_client = clients.get_edgenetwork_client()
@@ -358,19 +361,6 @@ def _cluster_watcher_worker(
     )
 
     if edgecontainer_status == 0:
-        return 0
-
-    # Reuse the zone watcher's build history so both watchers share one implementation.
-    # Scoping to our own triggers matters: an unrelated build in the project that
-    # happens to carry a _STORE_ID substitution should not block reconciliation.
-    trigger_names = [params.cloud_build_trigger_name]
-    if params.create_cloud_build_trigger_name:
-        trigger_names.append(params.create_cloud_build_trigger_name)
-    try:
-        builds = BuildHistory(params.project_id, params.region, params.max_retries,
-                              trigger_names, client=cb_client)
-    except Exception as err:
-        logger.warning(f"Error checking active builds, skipping this pass: {err}")
         return 0
 
     for store_id in stores:
@@ -521,10 +511,25 @@ def cluster_watcher(req: flask.Request):
     config_zone_info = read_intent_data(params, 'fleet_project_id')
     count = 0
 
+    # Built once per invocation and shared across workers, mirroring zone_watcher.
+    trigger_names = [params.cloud_build_trigger_name]
+    if params.create_cloud_build_trigger_name:
+        trigger_names.append(params.create_cloud_build_trigger_name)
+    try:
+        builds = BuildHistory(params.project_id, params.region, params.max_retries,
+                              trigger_names, client=clients.get_cloudbuild_client())
+    except Exception:
+        # Fail closed: without build history we cannot tell whether a create or modify
+        # build is already in flight, and triggering one anyway is what this guards against.
+        logger.exception(
+            'Unable to load Cloud Build history; skipping this pass to avoid racing in-flight builds'
+        )
+        return 'total zones triggered = 0'
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=params.max_workers) as executor:
         futures = []
         for (project_id, location), stores in config_zone_info.items():
-            future = executor.submit(_cluster_watcher_worker, project_id, location, stores, params)
+            future = executor.submit(_cluster_watcher_worker, project_id, location, stores, params, builds)
             futures.append(future)
         
         for future in concurrent.futures.as_completed(futures):

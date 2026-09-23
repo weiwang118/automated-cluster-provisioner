@@ -2,10 +2,19 @@ import logging
 import os
 from google.cloud.devtools import cloudbuild
 from google.cloud.devtools.cloudbuild import Build
-from typing import Dict, Iterable, Set, Union
+from typing import Dict, Iterable, Optional, Set, Union
 
 logger = logging.getLogger(__name__)
 logger.setLevel(os.environ.get("LOG_LEVEL", "INFO").upper())
+
+IN_FLIGHT_STATUSES = (
+    cloudbuild.Build.Status.QUEUED,
+    cloudbuild.Build.Status.PENDING,
+    cloudbuild.Build.Status.WORKING,
+)
+
+NON_FAILURE_STATUSES = IN_FLIGHT_STATUSES + (cloudbuild.Build.Status.SUCCESS,)
+
 
 class BuildSummary:
     latest_non_failure_status: Build.Status = None
@@ -24,30 +33,24 @@ class BuildSummary:
         #    or when there are not enough free machines.
 
         # latest_non_failure_status will only be updated with non-failure statuses.
-        if build.status in (cloudbuild.Build.Status.QUEUED, cloudbuild.Build.Status.PENDING, cloudbuild.Build.Status.WORKING, cloudbuild.Build.Status.SUCCESS):
+        if build.status in NON_FAILURE_STATUSES:
             self.latest_non_failure_status = build.status
             self.retriable = False
         else:
             # Any status in this category can be treated as a failure
             self.retriable = True
 
-IN_FLIGHT_STATUSES = (
-    cloudbuild.Build.Status.QUEUED,
-    cloudbuild.Build.Status.PENDING,
-    cloudbuild.Build.Status.WORKING,
-)
-
 
 class BuildHistory:
     def __init__(self, project_id: str, region: str, max_retries: int,
-                 trigger_name: Union[str, Iterable[str]], client=None):
+                 trigger_name: Union[str, Iterable[str]],
+                 client: Optional[cloudbuild.CloudBuildClient] = None):
         self.project_id = project_id
         self.region = region
         self.max_retries = max_retries
         # Accepts a single trigger name or several, so a caller that needs visibility
         # across both the create and modify triggers can share one ListBuilds pass.
         self.trigger_names = {trigger_name} if isinstance(trigger_name, str) else set(trigger_name)
-        self.trigger_name = trigger_name
         # Injectable so callers can share the client from clients.get_cloudbuild_client().
         self.client = client or cloudbuild.CloudBuildClient()
         # Stores with a build currently QUEUED/PENDING/WORKING on any of the triggers above.
@@ -179,9 +182,6 @@ class BuildHistory:
         if key not in self.builds:
             return 0
         return self.builds[key].latest_try_count
-
-        
-        
 
     def has_active_build(self, store_id: str) -> bool:
         """Whether the store has a build QUEUED, PENDING or WORKING right now.
