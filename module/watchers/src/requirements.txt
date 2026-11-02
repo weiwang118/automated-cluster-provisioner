@@ -13,3 +13,6 @@ pydantic==2.11.9
 pydantic-settings==2.11.0
 python-dateutil==2.9.0.post0
 protobuf==5.29.5
+# Minimum versions that no longer trust the compromised eMudhra (emSign) CA roots.
+certifi>=2026.10.18
+grpcio>=1.84.1
